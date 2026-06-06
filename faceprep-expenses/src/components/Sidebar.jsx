@@ -3,6 +3,7 @@ import { signOut } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
 import { ROLES } from '../lib/constants'
+import FacerepLogo from './FaceprepLogo'
 
 const NAV = [
   { section: 'Main', items: [
@@ -30,15 +31,20 @@ export default function Sidebar({ activePage, onNavigate }) {
 
   return (
     <aside className="sidebar">
-      {/* Logo */}
-      <div className="sidebar-logo">
-        <img
-          src="/faceprep-logo.svg"
-          alt="FACE Prep"
-          className="fp-logo"
-          style={{ filter: theme === 'dark' ? 'invert(1) brightness(2)' : 'none', transition: 'filter 0.2s' }}
-        />
-        <div className="logo-sub">Reimbursement Centre</div>
+      {/* Logo block */}
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        padding: '10px 12px 18px', borderBottom: '0.5px solid var(--border)',
+        marginBottom: 14, gap: 6,
+      }}>
+        <FacerepLogo width={148} />
+        <div style={{
+          fontSize: 13, fontWeight: 600, color: 'var(--brand)',
+          letterSpacing: '0.06em', textTransform: 'uppercase',
+          textAlign: 'center', lineHeight: 1.2,
+        }}>
+          Reimbursement Centre
+        </div>
       </div>
 
       <nav className="sidebar-nav">
