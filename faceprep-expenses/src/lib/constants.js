@@ -21,52 +21,42 @@ export const FUEL_BANDS = [
 ]
 
 export const EXPENSE_TYPES = [
-  'Base Local Travel',
-  'Outstation Travel',
-  'Outstation Local Travel',
-  'Internal Commute',
-  'Outstation Stay',
-  'Laundry',
-  'Transit Local Travel',
-  'Transit Stay',
-  'Toll/Parking',
-  'Courier Charges',
-  'Food Allowance',
-  'Miscellaneous',
-  'Mobile Allowance',
-  'Printing & Stationery',
+  'Base Local Travel','Outstation Travel','Outstation Local Travel',
+  'Internal Commute','Outstation Stay','Laundry','Transit Local Travel',
+  'Transit Stay','Toll/Parking','Courier Charges','Food Allowance',
+  'Miscellaneous','Mobile Allowance','Printing & Stationery',
 ]
 
 export const EXPENSE_TYPE_COLORS = {
-  'Base Local Travel': '#D85A30',
-  'Outstation Travel': '#378ADD',
-  'Outstation Local Travel': '#1D9E75',
-  'Internal Commute': '#EF9F27',
-  'Outstation Stay': '#7F77DD',
-  'Laundry': '#9FE1CB',
-  'Transit Local Travel': '#D4537E',
-  'Transit Stay': '#639922',
-  'Toll/Parking': '#BA7517',
-  'Courier Charges': '#534AB7',
-  'Food Allowance': '#0F6E56',
-  'Miscellaneous': '#888780',
-  'Mobile Allowance': '#185FA5',
-  'Printing & Stationery': '#993C1D',
+  'Base Local Travel': '#D85A30','Outstation Travel': '#378ADD',
+  'Outstation Local Travel': '#1D9E75','Internal Commute': '#EF9F27',
+  'Outstation Stay': '#7F77DD','Laundry': '#9FE1CB',
+  'Transit Local Travel': '#D4537E','Transit Stay': '#639922',
+  'Toll/Parking': '#BA7517','Courier Charges': '#534AB7',
+  'Food Allowance': '#0F6E56','Miscellaneous': '#888780',
+  'Mobile Allowance': '#185FA5','Printing & Stationery': '#993C1D',
 }
 
 export const CLAIM_STATUS = {
-  draft: { label: 'Draft', color: '#888780', bg: '#F1EFE8' },
-  pending_manager: { label: 'Pending Manager', color: '#BA7517', bg: '#FAEEDA' },
-  pending_finance: { label: 'Pending Finance', color: '#185FA5', bg: '#E6F1FB' },
-  approved: { label: 'Approved', color: '#0F6E56', bg: '#E1F5EE' },
-  rejected: { label: 'Rejected', color: '#993C1D', bg: '#FAECE7' },
+  draft:               { label: 'Draft' },
+  pending_manager:     { label: 'Pending Manager' },
+  pending_finance:     { label: 'Pending Finance' },
+  approved:            { label: 'Approved' },
+  rejected:            { label: 'Rejected' },
+  queried:             { label: 'Queried' },
+  resubmitted:         { label: 'Resubmitted' },
+  partially_approved:  { label: 'Partially Approved' },
+}
+
+export const LINE_STATUS = {
+  pending:  { label: 'Pending',  color: 'var(--text-muted)',     bg: 'var(--bg-elevated)' },
+  approved: { label: 'Approved', color: 'var(--green)',           bg: 'var(--green-bg)' },
+  queried:  { label: 'Queried',  color: 'var(--purple)',          bg: 'var(--purple-bg)' },
+  rejected: { label: 'Rejected', color: 'var(--red)',             bg: 'var(--red-bg)' },
 }
 
 export const ROLES = {
-  staff: 'Sales Rep',
-  manager: 'Manager',
-  finance: 'Finance',
-  admin: 'Admin',
+  staff: 'Sales Rep', manager: 'Manager', finance: 'Finance', admin: 'Admin',
 }
 
 export function getFuelRate(vehicle, band) {
@@ -75,17 +65,13 @@ export function getFuelRate(vehicle, band) {
 
 export function formatCurrency(amount) {
   return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    minimumFractionDigits: 2,
+    style: 'currency', currency: 'INR', minimumFractionDigits: 2,
   }).format(amount ?? 0)
 }
 
 export function formatDate(date) {
   if (!date) return '—'
   return new Date(date).toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
+    day: '2-digit', month: 'short', year: 'numeric',
   })
 }

@@ -214,3 +214,62 @@ create index idx_claims_submitted on public.claims(submitted_at);
 create index idx_fuel_claim on public.fuel_entries(claim_id);
 create index idx_expense_claim on public.expense_entries(claim_id);
 create index idx_expense_type on public.expense_entries(expense_type);
+
+-- ─────────────────────────────────────────────
+-- V2 ADDITIONS — run these in Supabase SQL Editor
+-- ─────────────────────────────────────────────
+
+-- User approval status on profiles
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS approved boolean default false,
+  ADD COLUMN IF NOT EXISTS approved_by uuid references public.profiles(id),
+  ADD COLUMN IF NOT EXISTS approved_at timestamptz;
+
+-- Clarification thread on claims
+CREATE TABLE IF NOT EXISTS public.claim_messages (
+  id         uuid primary key default uuid_generate_v4(),
+  claim_id   uuid not null references public.claims(id) on delete cascade,
+  sender_id  uuid not null references public.profiles(id),
+  message    text not null,
+  created_at timestamptz default now()
+);
+
+ALTER TABLE public.claim_messages ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Claim message access"
+  ON public.claim_messages FOR ALL
+  USING (
+    exists (
+      select 1 from claims c
+      where c.id = claim_id and (
+        c.employee_id = auth.uid() or
+        exists (select 1 from profiles where id = auth.uid() and role in ('manager','finance','admin'))
+      )
+    )
+  );
+
+-- Allow resubmission status
+ALTER TABLE public.claims
+  DROP CONSTRAINT IF EXISTS claims_status_check;
+
+ALTER TABLE public.claims
+  ADD CONSTRAINT claims_status_check
+  CHECK (status in ('draft','pending_manager','pending_finance','approved','rejected','resubmitted','queried'));
+
+-- Storage bucket for bills
+INSERT INTO storage.buckets (id, name, public) VALUES ('bills', 'bills', false)
+ON CONFLICT DO nothing;
+
+CREATE POLICY IF NOT EXISTS "Auth users upload bills"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'bills' AND auth.role() = 'authenticated');
+
+CREATE POLICY IF NOT EXISTS "Auth users view bills"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'bills' AND auth.role() = 'authenticated');
+
+-- Fuel bill URL on claims
+ALTER TABLE public.claims
+  ADD COLUMN IF NOT EXISTS fuel_bill_url text;
+
+-- Receipt URL already on expense_entries

@@ -3,7 +3,11 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const isMisconfigured = !supabaseUrl || !supabaseAnonKey
+
+export const supabase = isMisconfigured
+  ? null
+  : createClient(supabaseUrl, supabaseAnonKey)
 
 export const ALLOWED_DOMAIN = 'faceprep.in'
 
@@ -12,9 +16,7 @@ export async function signInWithGoogle() {
     provider: 'google',
     options: {
       redirectTo: window.location.origin,
-      queryParams: {
-        hd: ALLOWED_DOMAIN, // Google's hosted domain hint
-      },
+      queryParams: { hd: ALLOWED_DOMAIN },
     },
   })
   if (error) throw error

@@ -2,23 +2,22 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { formatCurrency, formatDate, CLAIM_STATUS } from '../lib/constants'
-import { FileText } from 'lucide-react'
+import { exportClaimPDF } from '../lib/pdf'
+import { getBillUrl } from '../lib/storage'
+import ClaimThread from '../components/ClaimThread'
+import { FileText, Download, Eye, RefreshCw } from 'lucide-react'
 
-export default function MyClaimsPage() {
+export default function MyClaimsPage({ onResubmit }) {
   const { profile } = useAuth()
   const [claims, setClaims] = useState([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
 
-  useEffect(() => {
-    if (!profile) return
-    fetchClaims()
-  }, [profile])
+  useEffect(() => { if (profile) fetchClaims() }, [profile])
 
   async function fetchClaims() {
     setLoading(true)
-    const { data } = await supabase
-      .from('claims')
+    const { data } = await supabase.from('claims')
       .select(`*, fuel_entries(*), expense_entries(*)`)
       .eq('employee_id', profile.id)
       .order('created_at', { ascending: false })
@@ -26,23 +25,32 @@ export default function MyClaimsPage() {
     setLoading(false)
   }
 
+  async function handleExport(c) {
+    exportClaimPDF(c, c.fuel_entries, c.expense_entries, profile)
+  }
+
+  async function viewBill(url) {
+    if (!url) return
+    const signedUrl = await getBillUrl(url)
+    if (signedUrl) window.open(signedUrl, '_blank')
+  }
+
   const summaries = {
     total: claims.length,
-    pending: claims.filter(c => c.status.startsWith('pending')).length,
+    pending: claims.filter(c => ['pending_manager','pending_finance','queried','resubmitted'].includes(c.status)).length,
     approved: claims.filter(c => c.status === 'approved').length,
     amount: claims.reduce((s, c) => s + Number(c.total_amount || 0), 0),
   }
 
+  const canResubmit = (status) => status === 'rejected' || status === 'queried'
+
   return (
     <div>
       <div className="page-header">
-        <div>
-          <div className="page-title">My claims</div>
-          <div className="page-sub">All your submitted reimbursement claims</div>
-        </div>
+        <div><div className="page-title">My claims</div><div className="page-sub">All your submitted reimbursement claims</div></div>
       </div>
 
-      <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
+      <div className="stat-grid">
         {[
           { label: 'Total', value: summaries.total, accent: 'var(--brand)' },
           { label: 'Pending', value: summaries.pending, accent: 'var(--amber)' },
@@ -57,107 +65,75 @@ export default function MyClaimsPage() {
       </div>
 
       <div className="card">
-        {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
-            <div className="spinner" />
-          </div>
-        ) : claims.length === 0 ? (
-          <div className="empty-state">
-            <FileText size={32} />
-            <div>No claims submitted yet.</div>
-          </div>
-        ) : (
+        {loading ? <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><div className="spinner" /></div>
+        : claims.length === 0 ? <div className="empty-state"><FileText size={32} /><div>No claims yet.</div></div>
+        : (
           <div className="table-wrap">
             <table>
-              <thead>
-                <tr>
-                  <th>Claim ID</th>
-                  <th>Period</th>
-                  <th>Vehicle</th>
-                  <th>Fuel amt</th>
-                  <th>Other</th>
-                  <th>Total</th>
-                  <th>Status</th>
-                  <th>Submitted</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Claim ID</th><th>Period</th><th>Fuel</th><th>Other</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
                 {claims.map(c => (
-                  <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => setSelected(selected?.id === c.id ? null : c)}>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: '12px', color: 'var(--brand)' }}>{c.claim_number}</td>
-                    <td style={{ fontSize: '12px' }}>{formatDate(c.period_from)} → {formatDate(c.period_to)}</td>
-                    <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{c.vehicle_type}</td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: '12px' }}>{formatCurrency(c.fuel_amount)}</td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: '12px' }}>{formatCurrency(c.expense_amount)}</td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: '12px', fontWeight: '600' }}>{formatCurrency(c.total_amount)}</td>
-                    <td><span className={`badge badge-${c.status}`}>{CLAIM_STATUS[c.status]?.label}</span></td>
-                    <td style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{formatDate(c.submitted_at)}</td>
-                  </tr>
+                  <>
+                    <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => setSelected(selected?.id === c.id ? null : c)}>
+                      <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--brand)' }}>{c.claim_number}</td>
+                      <td style={{ fontSize: 12 }}>{formatDate(c.period_from)} → {formatDate(c.period_to)}</td>
+                      <td style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{formatCurrency(c.fuel_amount)}</td>
+                      <td style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{formatCurrency(c.expense_amount)}</td>
+                      <td style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600 }}>{formatCurrency(c.total_amount)}</td>
+                      <td><span className={`badge badge-${c.status}`}>{CLAIM_STATUS[c.status]?.label ?? c.status}</span></td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+                          <button className="btn btn-ghost btn-xs" title="Download PDF" onClick={() => handleExport(c)}><Download size={12} /></button>
+                          {canResubmit(c.status) && (
+                            <button className="btn btn-xs" style={{ background: 'var(--amber-bg)', color: 'var(--amber)', border: '0.5px solid rgba(239,159,39,0.2)' }} onClick={() => onResubmit(c)}>
+                              <RefreshCw size={11} /> Resubmit
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                    {selected?.id === c.id && (
+                      <tr key={c.id + '-detail'}>
+                        <td colSpan={7} style={{ padding: 0 }}>
+                          <div style={{ background: 'var(--bg-elevated)', padding: '16px 20px', borderBottom: '0.5px solid var(--border)' }}>
+                            {c.manager_note && <div style={{ fontSize: 12, color: 'var(--amber)', marginBottom: 8 }}>💬 Manager: {c.manager_note}</div>}
+                            {c.finance_note && <div style={{ fontSize: 12, color: 'var(--blue)', marginBottom: 8 }}>💬 Finance: {c.finance_note}</div>}
+
+                            <div className="grid2">
+                              {c.fuel_entries?.length > 0 && (
+                                <div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                    <div className="section-label" style={{ marginBottom: 0 }}>Fuel journeys</div>
+                                    {c.fuel_bill_url && <button className="btn btn-ghost btn-xs" style={{ color: 'var(--blue)' }} onClick={() => viewBill(c.fuel_bill_url)}><Eye size={12} /> Fuel bill</button>}
+                                  </div>
+                                  <table><thead><tr><th>Date</th><th>Route</th><th>KM</th><th>Amount</th></tr></thead>
+                                    <tbody>{c.fuel_entries.map(f => (
+                                      <tr key={f.id}><td style={{ fontSize: 11 }}>{formatDate(f.entry_date)}</td><td style={{ fontSize: 11 }}>{f.from_place} → {f.to_place}</td><td style={{ fontSize: 11 }}>{f.distance_km} km</td><td style={{ fontSize: 11 }}>{formatCurrency(f.amount)}</td></tr>
+                                    ))}</tbody>
+                                  </table>
+                                </div>
+                              )}
+                              {c.expense_entries?.length > 0 && (
+                                <div>
+                                  <div className="section-label">Expenses</div>
+                                  <table><thead><tr><th>Type</th><th>Description</th><th>Amount</th><th>Bill</th></tr></thead>
+                                    <tbody>{c.expense_entries.map(e => (
+                                      <tr key={e.id}><td style={{ fontSize: 11 }}>{e.expense_type}</td><td style={{ fontSize: 11 }}>{e.description}</td><td style={{ fontSize: 11 }}>{formatCurrency(e.amount)}</td><td>{e.receipt_url ? <button className="btn btn-ghost btn-xs" style={{ color: 'var(--blue)' }} onClick={() => viewBill(e.receipt_url)}><Eye size={12} /></button> : '—'}</td></tr>
+                                    ))}</tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+                            <div className="divider" />
+                            <ClaimThread claimId={c.id} />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
-
-        {/* Expanded detail */}
-        {selected && (
-          <div style={{
-            marginTop: 16,
-            background: 'var(--bg-elevated)',
-            borderRadius: 'var(--radius-md)',
-            padding: 16,
-            border: '0.5px solid var(--border-strong)',
-          }}>
-            <div style={{ fontWeight: 500, marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--brand)' }}>{selected.claim_number}</span>
-              {selected.manager_note && (
-                <div style={{ fontSize: 11, color: 'var(--amber)' }}>Manager note: {selected.manager_note}</div>
-              )}
-              {selected.finance_note && (
-                <div style={{ fontSize: 11, color: 'var(--blue)' }}>Finance note: {selected.finance_note}</div>
-              )}
-            </div>
-
-            {selected.fuel_entries?.length > 0 && (
-              <>
-                <div className="section-label">Fuel journeys</div>
-                <table style={{ marginBottom: 16 }}>
-                  <thead><tr><th>Date</th><th>Route</th><th>Purpose</th><th>KM</th><th>Rate</th><th>Amount</th></tr></thead>
-                  <tbody>
-                    {selected.fuel_entries.map(f => (
-                      <tr key={f.id}>
-                        <td style={{ fontSize: 12 }}>{formatDate(f.entry_date)}</td>
-                        <td style={{ fontSize: 12 }}>{f.from_place} → {f.to_place}</td>
-                        <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{f.purpose || '—'}</td>
-                        <td style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{f.distance_km} km</td>
-                        <td style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>₹{f.rate_per_km}/km</td>
-                        <td style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{formatCurrency(f.amount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </>
-            )}
-
-            {selected.expense_entries?.length > 0 && (
-              <>
-                <div className="section-label">Expense entries</div>
-                <table>
-                  <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Bill no.</th><th>Amount</th></tr></thead>
-                  <tbody>
-                    {selected.expense_entries.map(e => (
-                      <tr key={e.id}>
-                        <td style={{ fontSize: 12 }}>{formatDate(e.entry_date)}</td>
-                        <td style={{ fontSize: 12 }}>{e.expense_type}</td>
-                        <td style={{ fontSize: 12 }}>{e.description}</td>
-                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-muted)' }}>{e.bill_number || 'NA'}</td>
-                        <td style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{formatCurrency(e.amount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </>
-            )}
           </div>
         )}
       </div>
