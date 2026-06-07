@@ -43,10 +43,11 @@ export default function LoginPage() {
           </div>
           {/* Tool name — prominent */}
           <div style={{
-            fontSize: 18, fontWeight: 700,
+            fontSize: 20, fontWeight: 700,
             fontFamily: 'var(--font-display)',
-            color: 'var(--text-primary)',
+            color: '#ffffff',
             letterSpacing: '-0.01em',
+            textTransform: 'none',
             marginBottom: 4,
           }}>
             Reimbursement Centre

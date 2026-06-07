@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { displayClaimNumber } from '../lib/claimNumber'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { formatCurrency, formatDate, CLAIM_STATUS } from '../lib/constants'
@@ -111,7 +112,7 @@ export default function DashboardPage({ onNavigate }) {
               <tbody>
                 {recent.map(c => (
                   <tr key={c.id}>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: '12px', color: 'var(--brand)' }}>{c.claim_number}</td>
+                    <td style={{ fontFamily: 'var(--mono)', fontSize: '12px', color: 'var(--brand)' }}>{displayClaimNumber(c, claims)}</td>
                     <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                       {formatDate(c.period_from)} → {formatDate(c.period_to)}
                     </td>

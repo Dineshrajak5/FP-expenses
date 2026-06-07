@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { displayClaimNumber } from '../lib/claimNumber'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../components/Toast'
@@ -57,12 +58,12 @@ export default function ApprovalsPage() {
       })
 
       if (result.type === 'all_approved') {
-        toast(`✅ ${claim.claim_number} approved${profile.role === 'manager' ? ' — sent to Finance' : ''}`, 'success')
+        toast(`✅ ${displayClaimNumber(claim, claims)} approved${profile.role === 'manager' ? ' — sent to Finance' : ''}`, 'success')
       } else if (result.type === 'all_rejected') {
-        toast(`❌ ${claim.claim_number} rejected`, 'error')
+        toast(`❌ ${displayClaimNumber(claim, claims)} rejected`, 'error')
       } else if (result.type === 'partial') {
         const msg = [
-          `✅ ${claim.claim_number} partially approved`,
+          `✅ ${displayClaimNumber(claim, claims)} partially approved`,
           result.queriedCount > 0 ? `${result.queriedCount} item(s) queried → ${result.childClaimNumber}` : null,
           result.rejectedCount > 0 ? `${result.rejectedCount} item(s) rejected` : null,
         ].filter(Boolean).join(' · ')
@@ -135,7 +136,7 @@ export default function ApprovalsPage() {
               >
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--brand)', fontWeight: 700 }}>{c.claim_number}</span>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--brand)', fontWeight: 700 }}>{displayClaimNumber(c, claims)}</span>
                     {claimStatusBadge(c)}
                     {c.parent_claim_id && (
                       <span style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 3 }}>

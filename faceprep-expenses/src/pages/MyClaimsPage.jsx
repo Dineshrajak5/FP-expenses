@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { displayClaimNumber } from '../lib/claimNumber'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { formatCurrency, formatDate, CLAIM_STATUS } from '../lib/constants'
@@ -75,7 +76,7 @@ export default function MyClaimsPage({ onResubmit }) {
                 {claims.map(c => (
                   <>
                     <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => setSelected(selected?.id === c.id ? null : c)}>
-                      <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--brand)' }}>{c.claim_number}</td>
+                      <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--brand)' }}>{displayClaimNumber(c, claims)}</td>
                       <td style={{ fontSize: 12 }}>{formatDate(c.period_from)} → {formatDate(c.period_to)}</td>
                       <td style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{formatCurrency(c.fuel_amount)}</td>
                       <td style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{formatCurrency(c.expense_amount)}</td>
