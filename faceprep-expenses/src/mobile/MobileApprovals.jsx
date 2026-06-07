@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { displayClaimNumber } from '../lib/claimNumber'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../components/Toast'
@@ -146,7 +147,7 @@ export default function MobileApprovals({ onNavigate }) {
                 <div style={{ padding:'14px 16px' }} onClick={()=>setExpanded(expanded===c.id?null:c.id)}>
                   <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6 }}>
                     <div>
-                      <div style={{ fontFamily:'var(--mono)',fontSize:13,fontWeight:700,color:'var(--brand)',marginBottom:3 }}>{c.claim_number}</div>
+                      <div style={{ fontFamily:'var(--mono)',fontSize:13,fontWeight:700,color:'var(--brand)',marginBottom:3 }}>{displayClaimNumber(c, claims)}</div>
                       <div style={{ fontSize:12,color:'var(--text-secondary)',fontWeight:500 }}>{c.profiles?.full_name}</div>
                       <div style={{ fontSize:11,color:'var(--text-muted)',marginTop:1 }}>{formatDate(c.period_from)} → {formatDate(c.period_to)}</div>
                     </div>

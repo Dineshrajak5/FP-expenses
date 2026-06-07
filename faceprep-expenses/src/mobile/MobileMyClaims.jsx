@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { displayClaimNumber } from '../lib/claimNumber'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { formatCurrency, formatDate, CLAIM_STATUS } from '../lib/constants'
@@ -75,7 +76,7 @@ export default function MobileMyClaims({ onNavigate, onResubmit }) {
               <div onClick={() => setExpanded(expanded === c.id ? null : c.id)}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
                   <div>
-                    <div style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: 'var(--brand)', marginBottom: 4 }}>{c.claim_number}</div>
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: 'var(--brand)', marginBottom: 4 }}>{displayClaimNumber(c, claims)}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatDate(c.period_from)} → {formatDate(c.period_to)}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>

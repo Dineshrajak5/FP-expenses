@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { displayClaimNumber } from '../lib/claimNumber'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { formatCurrency, formatDate, CLAIM_STATUS } from '../lib/constants'
@@ -115,7 +116,7 @@ export default function MobileDashboard({ onNavigate, onPendingCount }) {
               <div key={c.id} className="m-list-item" onClick={() => onNavigate('my-claims')}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--brand)', fontWeight: 700 }}>{c.claim_number}</span>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--brand)', fontWeight: 700 }}>{displayClaimNumber(c, claims)}</span>
                     <span className={`badge badge-${c.status}`} style={{ fontSize: 10 }}>{CLAIM_STATUS[c.status]?.label ?? c.status}</span>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
