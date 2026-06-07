@@ -39,9 +39,10 @@ export default function Sidebar({ activePage, onNavigate }) {
       }}>
         <FacerepLogo width={148} />
         <div style={{
-          fontSize: 13, fontWeight: 600, color: 'var(--brand)',
-          letterSpacing: '0.06em', textTransform: 'uppercase',
-          textAlign: 'center', lineHeight: 1.2,
+          fontSize: 13, fontWeight: 700, color: '#ffffff',
+          fontFamily: 'var(--font-display)',
+          letterSpacing: '-0.01em', textTransform: 'none',
+          textAlign: 'center', lineHeight: 1.3,
         }}>
           Reimbursement Centre
         </div>
