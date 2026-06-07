@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../components/Toast'
 import { ROLES } from '../lib/constants'
-import { UserCheck, UserX, Shield } from 'lucide-react'
+import { UserCheck, UserX, Shield, AlertTriangle, Trash2, Lock } from 'lucide-react'
 
 const ROLE_OPTIONS = ['staff', 'manager', 'finance', 'admin']
 
@@ -13,6 +13,41 @@ export default function AdminPage() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
+
+  // Data wipe state
+  const [wipeOpen, setWipeOpen] = useState(false)
+  const [secretCode, setSecretCode] = useState('')
+  const [confirmText, setConfirmText] = useState('')
+  const [wiping, setWiping] = useState(false)
+
+  async function handleWipe() {
+    if (confirmText !== 'DELETE ALL') {
+      toast('Type "DELETE ALL" exactly to confirm', 'error')
+      return
+    }
+    if (!secretCode) {
+      toast('Enter the secret code', 'error')
+      return
+    }
+    setWiping(true)
+    try {
+      const { data, error } = await supabase.rpc('wipe_all_claim_data', { secret_code: secretCode })
+      if (error) throw error
+      if (!data?.success) {
+        toast(data?.error || 'Wipe failed', 'error')
+        setWiping(false)
+        return
+      }
+      toast(`Wiped ${data.deleted_claims} claims. Numbers reset.`, 'success')
+      setWipeOpen(false)
+      setSecretCode('')
+      setConfirmText('')
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setWiping(false)
+    }
+  }
 
   useEffect(() => { fetchUsers() }, [])
 
@@ -163,6 +198,67 @@ export default function AdminPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* ── Danger Zone ── */}
+      <div className="card" style={{ marginTop: 16, border: '0.5px solid rgba(232,69,69,0.3)', background: 'rgba(232,69,69,0.03)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <AlertTriangle size={16} style={{ color: 'var(--red)' }} />
+          <h3 style={{ color: 'var(--red)', fontSize: 15 }}>Danger zone — testing only</h3>
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, maxWidth: 600 }}>
+          Permanently delete <strong>all claims, fuel entries, expense entries, uploaded bill references and messages</strong>.
+          Claim numbers reset to RCLAIM-00001. This is irreversible. Use only during the testing period before go-live.
+        </p>
+
+        {!wipeOpen ? (
+          <button
+            className="btn"
+            style={{ background: 'var(--red-bg)', color: 'var(--red)', border: '0.5px solid rgba(232,69,69,0.3)' }}
+            onClick={() => setWipeOpen(true)}
+          >
+            <Trash2 size={14} /> Wipe all data…
+          </button>
+        ) : (
+          <div style={{ maxWidth: 420, background: 'var(--bg-card)', border: '0.5px solid rgba(232,69,69,0.3)', borderRadius: 'var(--radius-md)', padding: 18 }}>
+            <div className="form-group" style={{ marginBottom: 14 }}>
+              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <Lock size={11} /> Secret code
+              </label>
+              <input
+                type="password"
+                placeholder="Enter the wipe secret code"
+                value={secretCode}
+                onChange={e => setSecretCode(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <label className="form-label">Type <span style={{ color: 'var(--red)', fontFamily: 'var(--mono)' }}>DELETE ALL</span> to confirm</label>
+              <input
+                type="text"
+                placeholder="DELETE ALL"
+                value={confirmText}
+                onChange={e => setConfirmText(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn-secondary" onClick={() => { setWipeOpen(false); setSecretCode(''); setConfirmText('') }} disabled={wiping}>
+                Cancel
+              </button>
+              <button
+                className="btn"
+                style={{ background: 'var(--red)', color: 'white', flex: 1, justifyContent: 'center', opacity: (confirmText === 'DELETE ALL' && secretCode) ? 1 : 0.5 }}
+                onClick={handleWipe}
+                disabled={wiping || confirmText !== 'DELETE ALL' || !secretCode}
+              >
+                {wiping ? <div className="spinner" style={{ width: 14, height: 14 }} /> : <Trash2 size={14} />}
+                {wiping ? 'Wiping…' : 'Permanently delete all data'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
