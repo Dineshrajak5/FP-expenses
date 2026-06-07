@@ -38,7 +38,8 @@ function MisconfiguredScreen() {
 
 function DesktopShell() {
   const { user, profile, realProfile, loading } = useAuth()
-  const [page, setPage] = useState('dashboard')
+  const [page, setPageState] = useState(() => sessionStorage.getItem('fp-page') || 'dashboard')
+  const setPage = (p) => { sessionStorage.setItem('fp-page', p); setPageState(p) }
   const [resubmitClaim, setResubmitClaim] = useState(null)
 
   if (loading) return (
