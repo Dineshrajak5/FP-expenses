@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../components/Toast'
 import { ROLES } from '../lib/constants'
-import { UserCheck, UserX, Shield, AlertTriangle, Trash2, Lock } from 'lucide-react'
+import { UserCheck, UserX, Shield, AlertTriangle, Trash2, Lock, UserPlus } from 'lucide-react'
 
 const ROLE_OPTIONS = ['staff', 'manager', 'finance', 'admin']
 
@@ -13,6 +13,36 @@ export default function AdminPage() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
+  const [activeTab, setActiveTab] = useState('users')
+
+  // New user form
+  const [newEmail, setNewEmail]     = useState('')
+  const [newName, setNewName]       = useState('')
+  const [newRole, setNewRole]       = useState('staff')
+  const [creating, setCreating]     = useState(false)
+
+  async function handleCreateUser() {
+    if (!newEmail || !newName) { toast('Fill in name and email', 'error'); return }
+    if (!newEmail.endsWith('@faceprep.in')) { toast('Must be a @faceprep.in email', 'error'); return }
+    setCreating(true)
+    try {
+      // Insert profile — when they first log in via Google OAuth,
+      // the trigger will find this profile and use it.
+      const { error } = await supabase.from('profiles').upsert({
+        email: newEmail.toLowerCase().trim(),
+        full_name: newName.trim(),
+        role: newRole,
+        approved: true,
+        approved_at: new Date().toISOString(),
+        approved_by: profile.id,
+      }, { onConflict: 'email' })
+      if (error) throw error
+      toast(`${newName} added as ${ROLES[newRole]}. They can now log in via Google.`, 'success')
+      setNewEmail(''); setNewName(''); setNewRole('staff')
+      fetchUsers()
+    } catch (err) { toast(err.message, 'error') }
+    finally { setCreating(false) }
+  }
 
   // Data wipe state
   const [wipeOpen, setWipeOpen] = useState(false)
@@ -87,6 +117,48 @@ export default function AdminPage() {
         <div><div className="page-title">Admin settings</div><div className="page-sub">Manage user access, roles and approvals</div></div>
       </div>
 
+      <div className="tabs">
+        <button className={`tab-item ${activeTab==='users'?'active':''}`} onClick={() => setActiveTab('users')}>User management</button>
+        <button className={`tab-item ${activeTab==='add'?'active':''}`} onClick={() => setActiveTab('add')}>Add user</button>
+        <button className={`tab-item ${activeTab==='danger'?'active':''}`} onClick={() => setActiveTab('danger')}>Danger zone</button>
+      </div>
+
+      {/* ── Add user tab ── */}
+      {activeTab === 'add' && (
+        <div className="card" style={{ maxWidth: 480 }}>
+          <h3 style={{ marginBottom: 4 }}>Add a team member</h3>
+          <p style={{ fontSize: 13, marginBottom: 20 }}>Pre-register someone so they're approved the moment they first log in with Google.</p>
+          <div className="form-group" style={{ marginBottom: 14 }}>
+            <label className="form-label">Full name</label>
+            <input type="text" placeholder="e.g. Ravi Kumar" value={newName} onChange={e => setNewName(e.target.value)} />
+          </div>
+          <div className="form-group" style={{ marginBottom: 14 }}>
+            <label className="form-label">Email (@faceprep.in)</label>
+            <input type="email" placeholder="ravi@faceprep.in" value={newEmail} onChange={e => setNewEmail(e.target.value)} />
+          </div>
+          <div className="form-group" style={{ marginBottom: 20 }}>
+            <label className="form-label">Role</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {ROLE_OPTIONS.filter(r => r !== 'admin').map(r => (
+                <button key={r}
+                  className={`btn btn-sm ${newRole===r?'btn-primary':'btn-secondary'}`}
+                  onClick={() => setNewRole(r)}
+                >{ROLES[r]}</button>
+              ))}
+            </div>
+          </div>
+          <button className="btn btn-primary" onClick={handleCreateUser} disabled={creating} style={{ width: '100%', justifyContent: 'center' }}>
+            {creating ? <div className="spinner" style={{ width: 14, height: 14 }} /> : <UserPlus size={15} />}
+            {creating ? 'Adding…' : 'Add team member'}
+          </button>
+          <div style={{ marginTop: 14, padding: '10px 12px', background: 'var(--bg-elevated)', borderRadius: 8, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+            💡 The person still needs to sign in using Google OAuth at fp-expenses.vercel.app. Their access will be active immediately on first login.
+          </div>
+        </div>
+      )}
+
+      {/* ── User management tab ── */}
+      {activeTab === 'users' && (<>
       <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 20 }}>
         {[
           { label: 'Total users', value: counts.total, accent: 'var(--blue)' },
@@ -200,8 +272,11 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* ── Danger Zone ── */}
-      <div className="card" style={{ marginTop: 16, border: '0.5px solid rgba(232,69,69,0.3)', background: 'rgba(232,69,69,0.03)' }}>
+      </>)}
+
+      {/* ── Danger Zone tab ── */}
+      {activeTab === 'danger' && (
+      <div className="card" style={{ border: '0.5px solid rgba(232,69,69,0.3)', background: 'rgba(232,69,69,0.03)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
           <AlertTriangle size={16} style={{ color: 'var(--red)' }} />
           <h3 style={{ color: 'var(--red)', fontSize: 15 }}>Danger zone — testing only</h3>
@@ -260,6 +335,7 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }

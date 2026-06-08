@@ -1,307 +1,349 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
-import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-  AreaChart, Area
-} from 'recharts'
+import { useAuth } from '../hooks/useAuth'
 import { formatCurrency, EXPENSE_TYPE_COLORS, countsTowardAmount } from '../lib/constants'
-import { format, parseISO, startOfMonth, eachMonthOfInterval, subMonths } from 'date-fns'
+import {
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} from 'recharts'
+import { TrendingUp, Users, Fuel, DollarSign, Filter } from 'lucide-react'
 
-const MONTH_COUNT = 6
+const COLORS = ['#F05136','#378ADD','#1D9E75','#EF9F27','#7F77DD','#E24B4A','#22C47A','#9B8FEE']
+
+function Card({ children, style }) {
+  return <div className="card" style={{ marginBottom: 16, ...style }}>{children}</div>
+}
+
+function StatMini({ label, value, accent }) {
+  return (
+    <div style={{ background: 'var(--bg-card)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '14px 18px', borderTop: `2px solid ${accent}` }}>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: '1.4rem', fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>{value}</div>
+    </div>
+  )
+}
+
+const PERIODS = [
+  { id: 'week',  label: 'This week' },
+  { id: 'month', label: 'This month' },
+  { id: 'quarter', label: 'This quarter' },
+  { id: 'year',  label: 'This year' },
+  { id: 'all',   label: 'All time' },
+]
+
+function getPeriodRange(period) {
+  const now = new Date()
+  const from = new Date()
+  if (period === 'week')    from.setDate(now.getDate() - 7)
+  if (period === 'month')   from.setMonth(now.getMonth(), 1)
+  if (period === 'quarter') from.setMonth(Math.floor(now.getMonth() / 3) * 3, 1)
+  if (period === 'year')    from.setMonth(0, 1)
+  if (period === 'all')     return null
+  from.setHours(0, 0, 0, 0)
+  return from.toISOString()
+}
 
 export default function AnalyticsPage() {
-  const [loading, setLoading] = useState(true)
-  const [claims, setClaims] = useState([])
+  const { profile } = useAuth()
+  const [claims, setClaims]   = useState([])
   const [expenses, setExpenses] = useState([])
-  const [fuel, setFuel] = useState([])
+  const [fuel, setFuel]       = useState([])
+  const [reps, setReps]       = useState([])
+  const [loading, setLoading] = useState(true)
 
-  useEffect(() => { fetchAll() }, [])
+  // Filters
+  const [period, setPeriod]   = useState('month')
+  const [repFilter, setRepFilter] = useState('all')
 
-  async function fetchAll() {
+  useEffect(() => { fetchData() }, [])
+
+  async function fetchData() {
     setLoading(true)
-    const [{ data: c }, { data: e }, { data: f }] = await Promise.all([
-      supabase.from('claims').select('*').order('submitted_at'),
-      supabase.from('expense_entries').select('*').order('entry_date'),
-      supabase.from('fuel_entries').select('*').order('entry_date'),
+    const [{ data: c }, { data: e }, { data: f }, { data: r }] = await Promise.all([
+      supabase.from('claims').select('*, profiles!claims_employee_id_fkey(full_name)').order('submitted_at'),
+      supabase.from('expense_entries').select('*'),
+      supabase.from('fuel_entries').select('*'),
+      supabase.from('profiles').select('id, full_name').eq('role', 'staff'),
     ])
     setClaims(c ?? [])
     setExpenses(e ?? [])
     setFuel(f ?? [])
+    setReps(r ?? [])
     setLoading(false)
   }
 
-  // ── Monthly spend trend (last 6 months) ──
-  const months = eachMonthOfInterval({
-    start: subMonths(new Date(), MONTH_COUNT - 1),
-    end: new Date(),
-  })
+  // Apply filters
+  const filtered = useMemo(() => {
+    const fromDate = getPeriodRange(period)
+    return claims
+      .filter(countsTowardAmount)
+      .filter(c => !fromDate || new Date(c.submitted_at) >= new Date(fromDate))
+      .filter(c => repFilter === 'all' || c.employee_id === repFilter)
+  }, [claims, period, repFilter])
 
-  const monthlyTrend = months.map(m => {
-    const label = format(m, 'MMM yy')
-    const key = format(m, 'yyyy-MM')
-    const monthClaims = claims.filter(c => c.submitted_at?.startsWith(key) && countsTowardAmount(c))
-    return {
-      month: label,
-      fuel: monthClaims.reduce((s, c) => s + Number(c.fuel_amount || 0), 0),
-      other: monthClaims.reduce((s, c) => s + Number(c.expense_amount || 0), 0),
-      total: monthClaims.reduce((s, c) => s + Number(c.total_amount || 0), 0),
-    }
-  })
+  const filteredIds = useMemo(() => new Set(filtered.map(c => c.id)), [filtered])
 
-  // ── Expense by category ──
-  // Only count entries from amount-counted claims, and only approved/pending line items
-  const countedClaimIds = new Set(claims.filter(countsTowardAmount).map(c => c.id))
-  const validExpenses = expenses.filter(e =>
-    countedClaimIds.has(e.claim_id) && e.status !== 'rejected' && e.status !== 'queried'
+  const filteredExpenses = useMemo(() =>
+    expenses.filter(e => filteredIds.has(e.claim_id) && e.status !== 'rejected' && e.status !== 'queried'),
+    [expenses, filteredIds]
   )
-  const categoryMap = {}
-  validExpenses.forEach(e => {
-    categoryMap[e.expense_type] = (categoryMap[e.expense_type] || 0) + Number(e.amount)
-  })
-  const categoryData = Object.entries(categoryMap)
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 8)
+  const filteredFuel = useMemo(() =>
+    fuel.filter(f => filteredIds.has(f.claim_id) && f.status !== 'rejected' && f.status !== 'queried'),
+    [fuel, filteredIds]
+  )
 
-  // ── Claim status distribution ──
-  const statusMap = { pending_manager: 0, pending_finance: 0, approved: 0, rejected: 0, partially_approved: 0 }
-  claims.filter(c => c.status !== 'resubmitted' && c.status !== 'queried').forEach(c => { if (statusMap[c.status] !== undefined) statusMap[c.status]++ })
-  const statusData = [
-    { name: 'Approved', value: statusMap.approved, color: '#1D9E75' },
-    { name: 'Pending manager', value: statusMap.pending_manager, color: '#EF9F27' },
-    { name: 'Pending finance', value: statusMap.pending_finance, color: '#378ADD' },
-    { name: 'Rejected', value: statusMap.rejected, color: '#E24B4A' },
-  ].filter(d => d.value > 0)
+  // ── Key metrics ──
+  const totalSpend    = filtered.reduce((s, c) => s + Number(c.total_amount || 0), 0)
+  const totalFuelAmt  = filtered.reduce((s, c) => s + Number(c.fuel_amount || 0), 0)
+  const totalExpAmt   = filtered.reduce((s, c) => s + Number(c.expense_amount || 0), 0)
+  const totalKm       = filteredFuel.reduce((s, f) => s + Number(f.distance_km || 0), 0)
+  const approvedCount = filtered.filter(c => c.status === 'approved').length
+  const avgClaim      = filtered.length ? totalSpend / filtered.length : 0
 
-  // ── Vehicle split in fuel ──
-  const validFuel = fuel.filter(f => countedClaimIds.has(f.claim_id) && f.status !== 'rejected' && f.status !== 'queried')
-  const carFuel  = validFuel.reduce((s, f) => {
-    const c = claims.find(c => c.id === f.claim_id)
-    return c?.vehicle_type === 'Car' ? s + Number(f.amount) : s
-  }, 0)
-  const bikeFuel = validFuel.reduce((s, f) => {
-    const c = claims.find(cl => cl.id === f.claim_id)
-    return c?.vehicle_type === 'Bike' ? s + Number(f.amount) : s
-  }, 0)
+  // ── Trend chart (group by week or month depending on period) ──
+  const trendData = useMemo(() => {
+    const groups = {}
+    filtered.forEach(c => {
+      const d = new Date(c.submitted_at)
+      const key = period === 'week'
+        ? d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' })
+        : period === 'year' || period === 'all'
+          ? d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
+          : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+      groups[key] = (groups[key] || 0) + Number(c.total_amount || 0)
+    })
+    return Object.entries(groups).map(([date, amount]) => ({ date, amount: Math.round(amount) }))
+  }, [filtered, period])
+
+  // ── Category breakdown ──
+  const categoryData = useMemo(() => {
+    const map = {}
+    filteredExpenses.forEach(e => {
+      map[e.expense_type] = (map[e.expense_type] || 0) + Number(e.amount)
+    })
+    return Object.entries(map)
+      .map(([name, value]) => ({ name, value: Math.round(value), color: EXPENSE_TYPE_COLORS[name] || '#888' }))
+      .sort((a, b) => b.value - a.value)
+  }, [filteredExpenses])
+
+  // ── Rep leaderboard ──
+  const repData = useMemo(() => {
+    const map = {}
+    filtered.forEach(c => {
+      const name = c.profiles?.full_name || c.employee_id?.slice(0, 8) || 'Unknown'
+      if (!map[name]) map[name] = { name, total: 0, claims: 0, fuel: 0, expenses: 0 }
+      map[name].total    += Number(c.total_amount || 0)
+      map[name].fuel     += Number(c.fuel_amount || 0)
+      map[name].expenses += Number(c.expense_amount || 0)
+      map[name].claims   += 1
+    })
+    return Object.values(map).sort((a, b) => b.total - a.total)
+  }, [filtered])
+
+  // ── Status pipeline ──
+  const pipelineData = useMemo(() => {
+    const all = claims.filter(countsTowardAmount)
+      .filter(c => repFilter === 'all' || c.employee_id === repFilter)
+    return [
+      { name: 'Pending Manager', value: all.filter(c => c.status === 'pending_manager').length, color: '#EF9F27' },
+      { name: 'Pending Finance', value: all.filter(c => c.status === 'pending_finance').length, color: '#378ADD' },
+      { name: 'Approved',        value: all.filter(c => c.status === 'approved').length,        color: '#22C47A' },
+      { name: 'Partial',         value: all.filter(c => c.status === 'partially_approved').length, color: '#F05136' },
+      { name: 'Rejected',        value: all.filter(c => c.status === 'rejected').length,        color: '#E24B4A' },
+    ].filter(d => d.value > 0)
+  }, [claims, repFilter])
 
   // ── Top routes ──
-  const routeMap = {}
-  validFuel.forEach(f => {
-    const key = `${f.from_place} → ${f.to_place}`
-    if (!routeMap[key]) routeMap[key] = { count: 0, km: 0, amount: 0 }
-    routeMap[key].count++
-    routeMap[key].km += Number(f.distance_km)
-    routeMap[key].amount += Number(f.amount)
-  })
-  const topRoutes = Object.entries(routeMap)
-    .map(([route, stats]) => ({ route, ...stats }))
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 5)
+  const routeData = useMemo(() => {
+    const map = {}
+    filteredFuel.forEach(f => {
+      const key = `${f.from_place} → ${f.to_place}`
+      if (!map[key]) map[key] = { route: key, trips: 0, km: 0, amount: 0 }
+      map[key].trips  += 1
+      map[key].km     += Number(f.distance_km || 0)
+      map[key].amount += Number(f.amount || 0)
+    })
+    return Object.values(map).sort((a, b) => b.amount - a.amount).slice(0, 5)
+  }, [filteredFuel])
 
-  // Summary KPIs
-  const countedClaims = claims.filter(countsTowardAmount)
-  const totalSpend    = countedClaims.reduce((s, c) => s + Number(c.total_amount || 0), 0)
-  const approvedSpend = claims.filter(c => c.status === 'approved').reduce((s, c) => s + Number(c.total_amount || 0), 0)
-  const avgClaim      = countedClaims.length ? totalSpend / countedClaims.length : 0
-  const totalKm       = validFuel.reduce((s, f) => s + Number(f.distance_km || 0), 0)
+  const fmt = (n) => formatCurrency(n)
 
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (!active || !payload?.length) return null
-    return (
-      <div style={{
-        background: 'var(--bg-elevated)', border: '0.5px solid var(--border-strong)',
-        borderRadius: 8, padding: '10px 14px', fontSize: 12,
-      }}>
-        <div style={{ fontWeight: 500, marginBottom: 6, color: 'var(--text-primary)' }}>{label}</div>
-        {payload.map(p => (
-          <div key={p.name} style={{ color: p.color, display: 'flex', gap: 8, justifyContent: 'space-between' }}>
-            <span>{p.name}</span>
-            <span style={{ fontFamily: 'var(--mono)' }}>{formatCurrency(p.value)}</span>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  if (loading) return (
-    <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}>
-      <div className="spinner" style={{ width: 24, height: 24 }} />
-    </div>
-  )
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><div className="spinner" /></div>
 
   return (
     <div>
       <div className="page-header">
         <div>
           <div className="page-title">Analytics</div>
-          <div className="page-sub">Expense trends, category breakdown and claim pipeline</div>
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '6px 12px', borderRadius: 'var(--radius-sm)' }}>
-          Last {MONTH_COUNT} months
+          <div className="page-sub">{filtered.length} claims · {fmt(totalSpend)} total</div>
         </div>
       </div>
 
-      {/* KPI row */}
-      <div className="stat-grid" style={{ marginBottom: 20 }}>
-        {[
-          { label: 'Total spend', value: formatCurrency(totalSpend), accent: 'var(--brand)' },
-          { label: 'Approved spend', value: formatCurrency(approvedSpend), accent: 'var(--green)' },
-          { label: 'Avg. claim size', value: formatCurrency(avgClaim), accent: 'var(--blue)' },
-          { label: 'Total KM driven', value: `${totalKm.toFixed(0)} km`, accent: 'var(--amber)' },
-        ].map(s => (
-          <div key={s.label} className="stat-card" style={{ '--accent': s.accent }}>
-            <div className="stat-label">{s.label}</div>
-            <div className="stat-value" style={{ fontSize: '1.3rem' }}>{s.value}</div>
+      {/* ── Filters ── */}
+      <Card style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', fontSize: 13 }}>
+            <Filter size={14} /> Filters
           </div>
-        ))}
-      </div>
 
-      {/* Monthly trend chart */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-header">
-          <h3>Monthly spend trend</h3>
-          <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-muted)' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 3, background: 'var(--brand)', display: 'inline-block', borderRadius: 2 }} /> Fuel</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 3, background: 'var(--blue)', display: 'inline-block', borderRadius: 2 }} /> Other expenses</span>
+          {/* Period */}
+          <div style={{ display: 'flex', gap: 4 }}>
+            {PERIODS.map(p => (
+              <button key={p.id}
+                className={`btn btn-sm ${period === p.id ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setPeriod(p.id)}
+              >{p.label}</button>
+            ))}
           </div>
+
+          {/* Rep filter */}
+          {reps.length > 0 && (
+            <select
+              style={{ padding: '7px 12px', borderRadius: 6, border: '0.5px solid var(--border-strong)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: 13, fontFamily: 'var(--font)', maxWidth: 200 }}
+              value={repFilter}
+              onChange={e => setRepFilter(e.target.value)}
+            >
+              <option value="all">All reps</option>
+              {reps.map(r => <option key={r.id} value={r.id}>{r.full_name}</option>)}
+            </select>
+          )}
         </div>
-        <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={monthlyTrend} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-            <defs>
-              <linearGradient id="gradFuel" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#D85A30" stopOpacity={0.25} />
-                <stop offset="100%" stopColor="#D85A30" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="gradOther" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#378ADD" stopOpacity={0.25} />
-                <stop offset="100%" stopColor="#378ADD" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} tickFormatter={v => `₹${(v/1000).toFixed(0)}k`} />
-            <Tooltip content={<CustomTooltip />} />
-            <Area type="monotone" dataKey="fuel" name="Fuel" stroke="#D85A30" fill="url(#gradFuel)" strokeWidth={2} dot={false} />
-            <Area type="monotone" dataKey="other" name="Other" stroke="#378ADD" fill="url(#gradOther)" strokeWidth={2} dot={false} />
-          </AreaChart>
-        </ResponsiveContainer>
+      </Card>
+
+      {/* ── KPI row ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 12, marginBottom: 20 }}>
+        <StatMini label="Total spend"    value={fmt(totalSpend)}   accent="var(--brand)" />
+        <StatMini label="Claims"         value={filtered.length}   accent="var(--blue)" />
+        <StatMini label="Approved"       value={approvedCount}     accent="var(--green)" />
+        <StatMini label="Avg per claim"  value={fmt(avgClaim)}     accent="var(--purple)" />
+        <StatMini label="Fuel total"     value={fmt(totalFuelAmt)} accent="var(--amber)" />
+        <StatMini label="Total km"       value={`${Math.round(totalKm)} km`} accent="var(--red)" />
       </div>
 
-      {/* Row 2: Category pie + Status donut */}
+      {/* ── Trend + Pipeline ── */}
       <div className="grid2" style={{ marginBottom: 16 }}>
-        <div className="card">
-          <div className="card-header"><h3>Spend by category</h3></div>
-          {categoryData.length === 0 ? (
-            <div className="empty-state">No expense data yet</div>
-          ) : (
-            <>
-              <ResponsiveContainer width="100%" height={180}>
+        <Card>
+          <div className="card-header"><h3>Spend trend</h3></div>
+          {trendData.length === 0
+            ? <div className="empty-state">No data for this period</div>
+            : <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={trendData}>
+                  <defs>
+                    <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#F05136" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#F05136" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `₹${v}`} />
+                  <Tooltip formatter={v => fmt(v)} />
+                  <Area type="monotone" dataKey="amount" stroke="#F05136" fill="url(#grad)" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+          }
+        </Card>
+
+        <Card>
+          <div className="card-header"><h3>Pipeline status</h3></div>
+          {pipelineData.length === 0
+            ? <div className="empty-state">No data</div>
+            : <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
-                  <Pie data={categoryData} dataKey="value" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                    {categoryData.map((entry, i) => (
-                      <Cell key={entry.name} fill={EXPENSE_TYPE_COLORS[entry.name] ?? '#888'} />
-                    ))}
+                  <Pie data={pipelineData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={75} label={({ name, value }) => `${name}: ${value}`} labelLine={false} fontSize={10}>
+                    {pipelineData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                   </Pie>
-                  <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={{ background: 'var(--bg-elevated)', border: '0.5px solid var(--border-strong)', borderRadius: 8, fontSize: 12 }} />
+                  <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                {categoryData.map(d => (
-                  <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 2, background: EXPENSE_TYPE_COLORS[d.name] ?? '#888', flexShrink: 0 }} />
-                    <span style={{ flex: 1, color: 'var(--text-secondary)' }}>{d.name}</span>
-                    <span style={{ fontFamily: 'var(--mono)', color: 'var(--text-primary)' }}>{formatCurrency(d.value)}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="card">
-          <div className="card-header"><h3>Claim pipeline</h3></div>
-          {statusData.length === 0 ? (
-            <div className="empty-state">No claims yet</div>
-          ) : (
-            <>
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie data={statusData} dataKey="value" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                    {statusData.map((entry, i) => (
-                      <Cell key={entry.name} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: 'var(--bg-elevated)', border: '0.5px solid var(--border-strong)', borderRadius: 8, fontSize: 12 }} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-                {statusData.map(d => (
-                  <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
-                    <span style={{ flex: 1, color: 'var(--text-secondary)' }}>{d.name}</span>
-                    <span style={{ fontFamily: 'var(--mono)', fontWeight: 500, color: 'var(--text-primary)' }}>{d.value}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Fuel vehicle split */}
-              <div className="divider" />
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>FUEL: VEHICLE SPLIT</div>
-              <div style={{ display: 'flex', gap: 16 }}>
-                {[['Car', carFuel, 'var(--brand)'], ['Bike', bikeFuel, 'var(--blue)']].map(([label, val, color]) => (
-                  <div key={label} style={{ flex: 1, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', padding: '10px 12px' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
-                    <div style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 600, color }}>{formatCurrency(val)}</div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+          }
+        </Card>
       </div>
 
-      {/* Top routes */}
-      <div className="card">
-        <div className="card-header"><h3>Top routes by spend</h3></div>
-        {topRoutes.length === 0 ? (
-          <div className="empty-state">No fuel data yet</div>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Route</th>
-                  <th>Trips</th>
-                  <th>Total KM</th>
-                  <th>Total spend</th>
-                  <th>Avg per trip</th>
+      {/* ── Category breakdown ── */}
+      <Card style={{ marginBottom: 16 }}>
+        <div className="card-header"><h3>Expense by category</h3><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmt(totalExpAmt)} total</span></div>
+        {categoryData.length === 0
+          ? <div className="empty-state">No expense data</div>
+          : <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={categoryData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} innerRadius={40}>
+                    {categoryData.map((e, i) => <Cell key={i} fill={e.color || COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={v => fmt(v)} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center', maxHeight: 220, overflowY: 'auto' }}>
+                {categoryData.map((c, i) => (
+                  <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 2, background: c.color || COLORS[i % COLORS.length], flexShrink: 0 }} />
+                    <span style={{ flex: 1, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+                    <span style={{ fontFamily: 'var(--mono)', fontWeight: 600, color: 'var(--text-primary)', flexShrink: 0 }}>{fmt(c.value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+        }
+      </Card>
+
+      {/* ── Rep leaderboard ── */}
+      <Card style={{ marginBottom: 16 }}>
+        <div className="card-header"><h3>Rep-wise breakdown</h3><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{repData.length} reps</span></div>
+        {repData.length === 0
+          ? <div className="empty-state">No data</div>
+          : <>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={repData} margin={{ bottom: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-25} textAnchor="end" />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `₹${v}`} />
+                  <Tooltip formatter={v => fmt(v)} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="fuel"     name="Fuel"     fill="#F05136" stackId="a" radius={[0,0,0,0]} />
+                  <Bar dataKey="expenses" name="Expenses" fill="#378ADD" stackId="a" radius={[4,4,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="table-wrap" style={{ marginTop: 12 }}>
+                <table>
+                  <thead><tr><th>Rep</th><th>Claims</th><th>Fuel</th><th>Expenses</th><th>Total</th></tr></thead>
+                  <tbody>
+                    {repData.map(r => (
+                      <tr key={r.name}>
+                        <td style={{ fontWeight: 600 }}>{r.name}</td>
+                        <td>{r.claims}</td>
+                        <td style={{ fontFamily: 'var(--mono)' }}>{fmt(r.fuel)}</td>
+                        <td style={{ fontFamily: 'var(--mono)' }}>{fmt(r.expenses)}</td>
+                        <td style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--brand)' }}>{fmt(r.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+        }
+      </Card>
+
+      {/* ── Top routes ── */}
+      {routeData.length > 0 && (
+        <Card>
+          <div className="card-header"><h3>Top fuel routes</h3></div>
+          <table>
+            <thead><tr><th>#</th><th>Route</th><th>Trips</th><th>Total km</th><th>Amount</th></tr></thead>
+            <tbody>
+              {routeData.map((r, i) => (
+                <tr key={r.route}>
+                  <td style={{ color: 'var(--text-muted)', fontWeight: 700 }}>#{i+1}</td>
+                  <td style={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.route}</td>
+                  <td>{r.trips}</td>
+                  <td style={{ fontFamily: 'var(--mono)' }}>{Math.round(r.km)} km</td>
+                  <td style={{ fontFamily: 'var(--mono)', fontWeight: 600, color: 'var(--brand)' }}>{fmt(r.amount)}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {topRoutes.map((r, i) => (
-                  <tr key={r.route}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{
-                          width: 20, height: 20, borderRadius: '50%',
-                          background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', flexShrink: 0
-                        }}>{i + 1}</div>
-                        <span style={{ fontSize: 12 }}>{r.route}</span>
-                      </div>
-                    </td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{r.count}</td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{r.km.toFixed(1)} km</td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600 }}>{formatCurrency(r.amount)}</td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{formatCurrency(r.amount / r.count)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
     </div>
   )
 }
