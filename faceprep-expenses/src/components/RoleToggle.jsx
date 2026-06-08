@@ -12,11 +12,12 @@ const ROLE_STYLES = {
 }
 
 export default function RoleToggle() {
-  const { profile } = useAuth()
+  // ✅ Use realProfile (never affected by impersonation) not profile
+  const { realProfile } = useAuth()
   const { impersonatedRole, setImpersonatedRole } = useImpersonate()
 
-  // Only show to real admins
-  if (profile?.role !== 'admin') return null
+  // Only show to real admins — realProfile.role is always the actual DB role
+  if (realProfile?.role !== 'admin') return null
 
   const activeRole = impersonatedRole || 'admin'
   const s = ROLE_STYLES[activeRole]
@@ -31,12 +32,10 @@ export default function RoleToggle() {
       boxShadow: `0 0 0 3px ${s.bg}`,
       transition: 'all 0.2s',
     }}>
-      {/* Preview label */}
       <div style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
         👁 Previewing as
       </div>
 
-      {/* Role pills */}
       <div style={{ display: 'flex', gap: 3 }}>
         {ROLE_ORDER.map(role => {
           const active = activeRole === role
@@ -65,17 +64,13 @@ export default function RoleToggle() {
         })}
       </div>
 
-      {/* Active indicator */}
       {impersonatedRole && (
         <div style={{
           fontSize: 10, fontWeight: 600,
-          color: s.color,
-          background: s.bg,
+          color: s.color, background: s.bg,
           border: `0.5px solid ${s.border}`,
-          padding: '2px 8px',
-          borderRadius: 20,
-          whiteSpace: 'nowrap',
-          letterSpacing: '0.04em',
+          padding: '2px 8px', borderRadius: 20,
+          whiteSpace: 'nowrap', letterSpacing: '0.04em',
         }}>
           PREVIEW MODE
         </div>
