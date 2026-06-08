@@ -46,6 +46,7 @@ export const CLAIM_STATUS = {
   queried:             { label: 'Queried' },
   resubmitted:         { label: 'Resubmitted' },
   partially_approved:  { label: 'Partially Approved' },
+  payment_processed:   { label: 'Payment Processed' },
 }
 
 export const LINE_STATUS = {
@@ -93,9 +94,9 @@ export function formatDate(date) {
  */
 export const SUPERSEDED_STATUSES = ['resubmitted', 'queried']
 
-export const LIVE_STATUSES = ['pending_manager', 'pending_finance', 'approved', 'partially_approved', 'rejected']
+export const LIVE_STATUSES = ['pending_manager', 'pending_finance', 'approved', 'partially_approved', 'rejected', 'payment_processed']
 
-export const AMOUNT_COUNTED_STATUSES = ['pending_manager', 'pending_finance', 'approved', 'partially_approved']
+export const AMOUNT_COUNTED_STATUSES = ['pending_manager', 'pending_finance', 'approved', 'partially_approved', 'payment_processed']
 
 export const PENDING_STATUSES = ['pending_manager', 'pending_finance']
 
