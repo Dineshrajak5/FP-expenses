@@ -15,6 +15,7 @@ function LineStatusBadge({ status }) {
 }
 
 function LineActions({ status, onApprove, onQuery, onReject, disabled }) {
+  const canQuery = !!onQuery
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState('')
 
@@ -29,12 +30,12 @@ function LineActions({ status, onApprove, onQuery, onReject, disabled }) {
           onClick={() => onApprove(note)}
           style={{ width: 26, height: 26, borderRadius: 6, border: '0.5px solid rgba(29,158,117,0.3)', background: 'var(--green-bg)', color: 'var(--green)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         ><CheckCircle size={13} /></button>
-        <button
+        {canQuery && <button
           title="Query this item"
           disabled={disabled}
           onClick={() => setNoteOpen(o => !o)}
           style={{ width: 26, height: 26, borderRadius: 6, border: '0.5px solid rgba(127,119,221,0.3)', background: 'var(--purple-bg)', color: 'var(--purple)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        ><MessageSquare size={13} /></button>
+        ><MessageSquare size={13} /></button>}
         <button
           title="Reject this item"
           disabled={disabled}
@@ -42,7 +43,7 @@ function LineActions({ status, onApprove, onQuery, onReject, disabled }) {
           style={{ width: 26, height: 26, borderRadius: 6, border: '0.5px solid rgba(226,75,74,0.2)', background: 'var(--red-bg)', color: 'var(--red)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         ><XCircle size={13} /></button>
       </div>
-      {noteOpen && (
+      {canQuery && noteOpen && (
         <div style={{ display: 'flex', gap: 4, width: '100%' }}>
           <input
             className="inline-input"
@@ -51,12 +52,12 @@ function LineActions({ status, onApprove, onQuery, onReject, disabled }) {
             value={note}
             onChange={e => setNote(e.target.value)}
             onKeyDown={e => {
-              if (e.key === 'Enter') { onQuery(note); setNoteOpen(false) }
+              if (e.key === 'Enter' && onQuery) { onQuery(note); setNoteOpen(false) }
             }}
           />
           <button
             style={{ fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '0.5px solid rgba(127,119,221,0.3)', background: 'var(--purple-bg)', color: 'var(--purple)', cursor: 'pointer', whiteSpace: 'nowrap' }}
-            onClick={() => { onQuery(note); setNoteOpen(false) }}
+            onClick={() => { if (onQuery) { onQuery(note); setNoteOpen(false) } }}
           >Send query</button>
         </div>
       )}
@@ -64,7 +65,7 @@ function LineActions({ status, onApprove, onQuery, onReject, disabled }) {
   )
 }
 
-export default function LineItemReviewer({ claim, onSaveLineDecisions, saving }) {
+export default function LineItemReviewer({ claim, onSaveLineDecisions, saving, role = 'manager' }) {
   const [decisions, setDecisions] = useState(() => {
     const d = {}
     claim.fuel_entries?.forEach(f => { d[`fuel_${f.id}`] = { status: f.status || 'pending', note: f.reviewer_note || '' } })
@@ -152,7 +153,7 @@ export default function LineItemReviewer({ claim, onSaveLineDecisions, saving })
                   <LineActions
                     status={dec.status}
                     onApprove={note => decide(key, 'approved', note)}
-                    onQuery={note => decide(key, 'queried', note)}
+                    onQuery={role !== 'finance' ? (note => decide(key, 'queried', note)) : null}
                     onReject={note => decide(key, 'rejected', note)}
                     disabled={saving}
                   />
@@ -205,7 +206,7 @@ export default function LineItemReviewer({ claim, onSaveLineDecisions, saving })
                   <LineActions
                     status={dec.status}
                     onApprove={note => decide(key, 'approved', note)}
-                    onQuery={note => decide(key, 'queried', note)}
+                    onQuery={role !== 'finance' ? (note => decide(key, 'queried', note)) : null}
                     onReject={note => decide(key, 'rejected', note)}
                     disabled={saving}
                   />
