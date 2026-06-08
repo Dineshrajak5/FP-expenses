@@ -111,7 +111,7 @@ export default function MobileApprovals({ onNavigate }) {
       <div style={{ display: 'flex', gap: 12, padding: '10px 16px', overflowX: 'auto', scrollbarWidth: 'none', background: 'var(--bg-surface)', borderBottom: '0.5px solid var(--border)' }}>
         {[['✓','Approve','var(--green)'],['?','Query','var(--purple)'],['✗','Reject','var(--red)']].map(([icon,label,color])=>(
           <div key={label} style={{ display:'flex', alignItems:'center', gap:5, flexShrink:0, fontSize:12 }}>
-            <span style={{ width:20,height:20,borderRadius:6,background:`color-mix(in srgb,${color} 15%,transparent)`,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:11 }}>{icon}</span>
+            <span style={{ width:20,height:20,borderRadius:6,background:color === 'var(--green)' ? 'rgba(34,196,122,0.15)' : color === 'var(--purple)' ? 'rgba(155,143,238,0.15)' : color === 'var(--red)' ? 'rgba(232,69,69,0.15)' : 'rgba(245,166,35,0.15)',color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:11 }}>{icon}</span>
             <span style={{ color:'var(--text-muted)' }}>{label}</span>
           </div>
         ))}
@@ -171,7 +171,7 @@ export default function MobileApprovals({ onNavigate }) {
                       {c.fuel_entries?.filter(f=>f.from_place).map(f=>{
                         const key=`fuel_${f.id}`; const dec=decisions[key]??{status:'pending',note:''}
                         return (
-                          <div key={f.id} style={{ padding:'10px 12px',borderRadius:10,marginBottom:8,background:LINE_BG[dec.status],border:`0.5px solid ${dec.status==='pending'?'var(--border)':`color-mix(in srgb,${LINE_COLOR[dec.status]} 20%,transparent)`}`,transition:'all 0.2s' }}>
+                          <div key={f.id} style={{ padding:'10px 12px',borderRadius:10,marginBottom:8,background:LINE_BG[dec.status],border:`0.5px solid ${dec.status==='pending'?'var(--border)':dec.status === 'approved' ? 'rgba(34,196,122,0.2)' : dec.status === 'queried' ? 'rgba(155,143,238,0.2)' : 'rgba(232,69,69,0.2)'}`,transition:'all 0.2s' }}>
                             <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6 }}>
                               <div style={{ flex:1 }}>
                                 <div style={{ fontSize:13,fontWeight:600,color:'var(--text-primary)' }}>{f.from_place} → {f.to_place}</div>
@@ -182,7 +182,7 @@ export default function MobileApprovals({ onNavigate }) {
                             {isPending && dec.status==='pending' && (
                               <div style={{ display:'flex',gap:6 }}>
                                 {[['approved','✓','var(--green)'],['queried','?','var(--purple)'],['rejected','✗','var(--red)']].map(([s,icon,color])=>(
-                                  <button key={s} onClick={()=>decide(key,s)} style={{ flex:1,padding:'7px',borderRadius:8,border:`0.5px solid color-mix(in srgb,${color} 30%,transparent)`,background:`color-mix(in srgb,${color} 10%,transparent)`,color,fontWeight:700,fontSize:15,cursor:'pointer' }}>{icon}</button>
+                                  <button key={s} onClick={()=>decide(key,s)} style={{ flex:1,padding:'7px',borderRadius:8,border:`0.5px solid color-mix(in srgb,${color} 30%,transparent)`,background:color === 'var(--green)' ? 'rgba(34,196,122,0.1)' : color === 'var(--purple)' ? 'rgba(155,143,238,0.1)' : color === 'var(--red)' ? 'rgba(232,69,69,0.1)' : 'rgba(245,166,35,0.1)',color,fontWeight:700,fontSize:15,cursor:'pointer' }}>{icon}</button>
                                 ))}
                               </div>
                             )}
@@ -204,7 +204,7 @@ export default function MobileApprovals({ onNavigate }) {
                       {c.expense_entries?.filter(e=>e.description).map(e=>{
                         const key=`exp_${e.id}`; const dec=decisions[key]??{status:'pending',note:''}
                         return (
-                          <div key={e.id} style={{ padding:'10px 12px',borderRadius:10,marginBottom:8,background:LINE_BG[dec.status],border:`0.5px solid ${dec.status==='pending'?'var(--border)':`color-mix(in srgb,${LINE_COLOR[dec.status]} 20%,transparent)`}`,transition:'all 0.2s' }}>
+                          <div key={e.id} style={{ padding:'10px 12px',borderRadius:10,marginBottom:8,background:LINE_BG[dec.status],border:`0.5px solid ${dec.status==='pending'?'var(--border)':dec.status === 'approved' ? 'rgba(34,196,122,0.2)' : dec.status === 'queried' ? 'rgba(155,143,238,0.2)' : 'rgba(232,69,69,0.2)'}`,transition:'all 0.2s' }}>
                             <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6 }}>
                               <div style={{ flex:1 }}>
                                 <div style={{ fontSize:13,fontWeight:600,color:'var(--text-primary)' }}>{e.expense_type}</div>
@@ -220,7 +220,7 @@ export default function MobileApprovals({ onNavigate }) {
                             {isPending && dec.status==='pending' && (
                               <div style={{ display:'flex',gap:6 }}>
                                 {[['approved','✓','var(--green)'],['queried','?','var(--purple)'],['rejected','✗','var(--red)']].map(([s,icon,color])=>(
-                                  <button key={s} onClick={()=>decide(key,s)} style={{ flex:1,padding:'7px',borderRadius:8,border:`0.5px solid color-mix(in srgb,${color} 30%,transparent)`,background:`color-mix(in srgb,${color} 10%,transparent)`,color,fontWeight:700,fontSize:15,cursor:'pointer' }}>{icon}</button>
+                                  <button key={s} onClick={()=>decide(key,s)} style={{ flex:1,padding:'7px',borderRadius:8,border:`0.5px solid color-mix(in srgb,${color} 30%,transparent)`,background:color === 'var(--green)' ? 'rgba(34,196,122,0.1)' : color === 'var(--purple)' ? 'rgba(155,143,238,0.1)' : color === 'var(--red)' ? 'rgba(232,69,69,0.1)' : 'rgba(245,166,35,0.1)',color,fontWeight:700,fontSize:15,cursor:'pointer' }}>{icon}</button>
                                 ))}
                               </div>
                             )}
