@@ -5,6 +5,7 @@ import { useToast } from '../components/Toast'
 import { uploadBill } from '../lib/storage'
 import { getFuelRate, FUEL_BANDS, EXPENSE_TYPES, formatCurrency, FUEL_RATES } from '../lib/constants'
 import BottomSheet from './BottomSheet'
+import { useDraft } from '../hooks/useDraft'
 import { ChevronLeft, Plus, Trash2, Camera, FileCheck, Info, Fuel, Edit2 } from 'lucide-react'
 
 const today = () => new Date().toISOString().split('T')[0]
@@ -66,29 +67,31 @@ function MobileUpload({ file, onSelect, existingUrl, label = 'Snap / upload bill
   )
 }
 
-export default function MobileNewClaim({ onNavigate, editClaim }) {
+export default function MobileNewClaim({ onNavigate, editClaim, draftData }) {
   const { profile } = useAuth()
   const toast = useToast()
   const isResubmit = !!editClaim
+  const src = draftData || editClaim || {}
 
   const [step, setStep] = useState(1)
-  const [periodFrom, setPeriodFrom] = useState(editClaim?.period_from?.slice(0,10) || '')
-  const [periodTo,   setPeriodTo]   = useState(editClaim?.period_to?.slice(0,10) || '')
-  const [vehicle,    setVehicle]    = useState(editClaim?.vehicle_type || 'Car')
-  const [fuelBand,   setFuelBand]   = useState(editClaim?.fuel_price_band || 'Below Rs. 100')
-  const [fuelRows,   setFuelRows]   = useState(() =>
-    editClaim?.fuel_entries?.length > 0
-      ? editClaim.fuel_entries.map(f => blankFuel(f))
-      : []
-  )
-  const [expRows, setExpRows] = useState(() =>
-    editClaim?.expense_entries?.length > 0
-      ? editClaim.expense_entries.map(e => blankExp(e))
-      : []
-  )
+  const [periodFrom, setPeriodFrom] = useState(src?.period_from?.slice(0,10) || '')
+  const [periodTo,   setPeriodTo]   = useState(src?.period_to?.slice(0,10) || '')
+  const [vehicle,    setVehicle]    = useState(src?.vehicle_type || 'Car')
+  const [fuelBand,   setFuelBand]   = useState(src?.fuel_price_band || 'Below Rs. 100')
+  const [fuelRows,   setFuelRows]   = useState(() => {
+    const rows = draftData?.fuelRows || editClaim?.fuel_entries || []
+    return rows.map(f => blankFuel(f))
+  })
+  const [expRows, setExpRows] = useState(() => {
+    const rows = draftData?.expRows || editClaim?.expense_entries || []
+    return rows.map(e => blankExp(e))
+  })
   const [fuelBillFile, setFuelBillFile] = useState(null)
   const [keepExistingBill, setKeepExistingBill] = useState(isResubmit && !!editClaim?.fuel_bill_url)
   const [submitting, setSubmitting] = useState(false)
+
+  const formState = isResubmit ? null : { period_from: periodFrom, period_to: periodTo, vehicle_type: vehicle, fuel_price_band: fuelBand, fuelRows, expRows }
+  const { deleteDraft } = useDraft(profile?.id, draftData?.draftId || null, formState, !isResubmit)
 
   // Sheet state
   const [fuelSheet, setFuelSheet] = useState(false)
@@ -200,6 +203,7 @@ export default function MobileNewClaim({ onNavigate, editClaim }) {
         await supabase.from('expense_entries').insert(expWithUrls)
       }
       if (editClaim) await supabase.from('claims').update({ status: 'resubmitted' }).eq('id', editClaim.id)
+      await deleteDraft()
       toast(`${claim.claim_number} submitted!`, 'success')
       onNavigate('my-claims')
     } catch (err) { toast(err.message, 'error') }
