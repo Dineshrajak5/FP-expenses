@@ -25,7 +25,7 @@ export default function ApprovalsPage() {
     setLoading(true)
     const pendingStatuses = profile.role === 'finance'
       ? ['pending_finance']
-      : ['pending_manager', 'queried', 'resubmitted']
+      : ['pending_manager']
     const allStatuses = [...pendingStatuses, 'approved', 'partially_approved', 'rejected']
 
     const { data } = await supabase
@@ -40,7 +40,7 @@ export default function ApprovalsPage() {
 
   const pendingStatuses = profile?.role === 'finance'
     ? ['pending_finance']
-    : ['pending_manager', 'queried', 'resubmitted']
+    : ['pending_manager']
 
   const pending = claims.filter(c => pendingStatuses.includes(c.status))
   const history = claims.filter(c => ['approved', 'partially_approved', 'rejected'].includes(c.status))

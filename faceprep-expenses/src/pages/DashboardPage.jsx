@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react'
-import { displayClaimNumber } from '../lib/claimNumber'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { formatCurrency, formatDate, CLAIM_STATUS } from '../lib/constants'
+import { displayClaimNumber } from '../lib/claimNumber'
+import {
+  formatCurrency, formatDate, CLAIM_STATUS,
+  isLiveClaim, countsTowardAmount, PENDING_STATUSES
+} from '../lib/constants'
 import { TrendingUp, Clock, CheckCircle, DollarSign, ArrowRight } from 'lucide-react'
 
 export default function DashboardPage({ onNavigate }) {
   const { profile } = useAuth()
   const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, totalAmt: 0 })
   const [recent, setRecent] = useState([])
+  const [allClaims, setAllClaims] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -26,23 +30,31 @@ export default function DashboardPage({ onNavigate }) {
     const { data: claims } = await q.order('created_at', { ascending: false })
     if (!claims) { setLoading(false); return }
 
+    setAllClaims(claims)
+
+    // Only count LIVE claims (exclude superseded queried/resubmitted stubs)
+    const liveClaims = claims.filter(isLiveClaim)
+
     setStats({
-      total: claims.length,
-      pending: claims.filter(c => c.status.startsWith('pending')).length,
-      approved: claims.filter(c => c.status === 'approved').length,
-      totalAmt: claims.reduce((s, c) => s + Number(c.total_amount || 0), 0),
+      total:   liveClaims.length,
+      pending: liveClaims.filter(c => PENDING_STATUSES.includes(c.status)).length,
+      approved: liveClaims.filter(c => c.status === 'approved').length,
+      // Sum only amounts that represent real current money
+      totalAmt: claims.filter(countsTowardAmount).reduce((s, c) => s + Number(c.total_amount || 0), 0),
     })
-    setRecent(claims.slice(0, 6))
+
+    // Recent list: show live claims only, newest first
+    setRecent(liveClaims.slice(0, 6))
     setLoading(false)
   }
 
   const isManager = ['manager', 'finance', 'admin'].includes(profile?.role)
 
   const statCards = [
-    { label: 'Total claims', value: stats.total, icon: TrendingUp, accent: 'var(--brand)', sub: 'All time' },
+    { label: 'Total claims', value: stats.total, icon: TrendingUp, accent: 'var(--brand)', sub: 'Active claims' },
     { label: 'Pending approval', value: stats.pending, icon: Clock, accent: 'var(--amber)', sub: 'Awaiting action' },
     { label: 'Approved', value: stats.approved, icon: CheckCircle, accent: 'var(--green)', sub: 'Processed' },
-    { label: 'Total claimed', value: formatCurrency(stats.totalAmt), icon: DollarSign, accent: 'var(--blue)', sub: 'Sum of approved + pending' },
+    { label: 'Total claimed', value: formatCurrency(stats.totalAmt), icon: DollarSign, accent: 'var(--blue)', sub: 'Approved + in-flight' },
   ]
 
   return (
@@ -54,12 +66,13 @@ export default function DashboardPage({ onNavigate }) {
             {isManager ? 'Team reimbursement overview' : 'Your reimbursement activity'}
           </div>
         </div>
-        <button className="btn btn-primary" onClick={() => onNavigate('new-claim')}>
-          <span>+</span> New claim
-        </button>
+        {profile?.role !== 'finance' && (
+          <button className="btn btn-primary" onClick={() => onNavigate('new-claim')}>
+            <span>+</span> New claim
+          </button>
+        )}
       </div>
 
-      {/* Stat cards */}
       <div className="stat-grid">
         {statCards.map(card => (
           <div key={card.label} className="stat-card" style={{ '--accent': card.accent }}>
@@ -81,7 +94,6 @@ export default function DashboardPage({ onNavigate }) {
         ))}
       </div>
 
-      {/* Recent claims */}
       <div className="card">
         <div className="card-header">
           <h3>Recent claims</h3>
@@ -112,7 +124,7 @@ export default function DashboardPage({ onNavigate }) {
               <tbody>
                 {recent.map(c => (
                   <tr key={c.id}>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: '12px', color: 'var(--brand)' }}>{displayClaimNumber(c, claims)}</td>
+                    <td style={{ fontFamily: 'var(--mono)', fontSize: '12px', color: 'var(--brand)' }}>{displayClaimNumber(c, allClaims)}</td>
                     <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                       {formatDate(c.period_from)} → {formatDate(c.period_to)}
                     </td>
@@ -132,12 +144,8 @@ export default function DashboardPage({ onNavigate }) {
 }
 
 export function StatusBadge({ status }) {
-  const s = CLAIM_STATUS[status] ?? { label: status, color: '#888', bg: '#333' }
-  return (
-    <span className={`badge badge-${status}`}>
-      {s.label}
-    </span>
-  )
+  const s = CLAIM_STATUS[status] ?? { label: status }
+  return <span className={`badge badge-${status}`}>{s.label}</span>
 }
 
 function getGreeting() {

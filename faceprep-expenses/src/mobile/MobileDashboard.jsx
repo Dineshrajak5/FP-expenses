@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { displayClaimNumber } from '../lib/claimNumber'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { formatCurrency, formatDate, CLAIM_STATUS } from '../lib/constants'
+import { formatCurrency, formatDate, CLAIM_STATUS, isLiveClaim, countsTowardAmount, PENDING_STATUSES } from '../lib/constants'
 import { signOut } from '../lib/supabase'
 import { LogOut, Sun, Moon, ChevronRight, Clock, CheckCircle, AlertCircle } from 'lucide-react'
 import FacerepLogo from '../components/FaceprepLogo'
@@ -27,6 +27,7 @@ export default function MobileDashboard({ onNavigate, onPendingCount }) {
   const { theme, toggle } = useTheme()
   const [stats, setStats]   = useState({ total: 0, pending: 0, approved: 0, amount: 0 })
   const [recent, setRecent] = useState([])
+  const [allClaims, setAllClaims] = useState([])
   const [loading, setLoading] = useState(true)
 
   const isApprover = ['manager','finance','admin'].includes(profile?.role)
@@ -40,15 +41,17 @@ export default function MobileDashboard({ onNavigate, onPendingCount }) {
     const { data } = await q.order('created_at', { ascending: false })
     if (!data) { setLoading(false); return }
 
-    const pending = data.filter(c => ['pending_manager','pending_finance','queried','resubmitted'].includes(c.status))
+    setAllClaims(data)
+    const liveClaims = data.filter(isLiveClaim)
+    const pendingPipeline = liveClaims.filter(c => PENDING_STATUSES.includes(c.status))
     setStats({
-      total:   data.length,
-      pending: pending.length,
-      approved: data.filter(c => c.status === 'approved').length,
-      amount:  data.reduce((s,c) => s + Number(c.total_amount||0), 0),
+      total:   liveClaims.length,
+      pending: pendingPipeline.length,
+      approved: liveClaims.filter(c => c.status === 'approved').length,
+      amount:  data.filter(countsTowardAmount).reduce((s,c) => s + Number(c.total_amount||0), 0),
     })
-    setRecent(data.slice(0, 5))
-    onPendingCount?.(isApprover ? pending.length : 0)
+    setRecent(liveClaims.slice(0, 5))
+    onPendingCount?.(isApprover ? pendingPipeline.length : 0)
     setLoading(false)
   }
 

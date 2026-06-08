@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { displayClaimNumber } from '../lib/claimNumber'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { formatCurrency, formatDate, CLAIM_STATUS } from '../lib/constants'
+import { formatCurrency, formatDate, CLAIM_STATUS, isLiveClaim, countsTowardAmount, PENDING_STATUSES } from '../lib/constants'
 import { exportClaimPDF } from '../lib/pdf'
 import { getBillUrl } from '../lib/storage'
 import ClaimThread from '../components/ClaimThread'
@@ -36,11 +36,12 @@ export default function MyClaimsPage({ onResubmit }) {
     if (signedUrl) window.open(signedUrl, '_blank')
   }
 
+  const liveClaims = claims.filter(isLiveClaim)
   const summaries = {
-    total: claims.length,
-    pending: claims.filter(c => ['pending_manager','pending_finance','queried','resubmitted'].includes(c.status)).length,
-    approved: claims.filter(c => c.status === 'approved').length,
-    amount: claims.reduce((s, c) => s + Number(c.total_amount || 0), 0),
+    total: liveClaims.length,
+    pending: liveClaims.filter(c => PENDING_STATUSES.includes(c.status)).length,
+    approved: liveClaims.filter(c => c.status === 'approved').length,
+    amount: claims.filter(countsTowardAmount).reduce((s, c) => s + Number(c.total_amount || 0), 0),
   }
 
   const canResubmit = (status) => status === 'rejected' || status === 'queried'
@@ -73,7 +74,7 @@ export default function MyClaimsPage({ onResubmit }) {
             <table>
               <thead><tr><th>Claim ID</th><th>Period</th><th>Fuel</th><th>Other</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
-                {claims.map(c => (
+                {claims.filter(c => c.status !== 'resubmitted').map(c => (
                   <>
                     <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => setSelected(selected?.id === c.id ? null : c)}>
                       <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--brand)' }}>{displayClaimNumber(c, claims)}</td>

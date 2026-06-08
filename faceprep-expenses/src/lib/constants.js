@@ -75,3 +75,36 @@ export function formatDate(date) {
     day: '2-digit', month: 'short', year: 'numeric',
   })
 }
+
+/**
+ * Claim lifecycle rules — single source of truth for counting & summing.
+ *
+ * SUPERSEDED statuses represent claims that have been replaced or split and
+ * should NOT count toward active totals or amount sums:
+ *   - 'resubmitted': the employee resubmitted this; a newer claim replaces it
+ *   - 'queried':     this is a queried stub that the employee will resubmit
+ *
+ * LIVE statuses are claims actively in the pipeline or settled:
+ *   - pending_manager, pending_finance, approved, partially_approved, rejected
+ *
+ * For AMOUNT sums we only count claims that represent real, current money:
+ *   - approved + partially_approved (settled) and pending_* (in flight)
+ *   - NOT queried/resubmitted (superseded) and NOT rejected (no money owed)
+ */
+export const SUPERSEDED_STATUSES = ['resubmitted', 'queried']
+
+export const LIVE_STATUSES = ['pending_manager', 'pending_finance', 'approved', 'partially_approved', 'rejected']
+
+export const AMOUNT_COUNTED_STATUSES = ['pending_manager', 'pending_finance', 'approved', 'partially_approved']
+
+export const PENDING_STATUSES = ['pending_manager', 'pending_finance']
+
+/** Claims that count as "active" for dashboard totals (excludes superseded stubs) */
+export function isLiveClaim(claim) {
+  return !SUPERSEDED_STATUSES.includes(claim.status)
+}
+
+/** Claims whose amount should be summed into totals */
+export function countsTowardAmount(claim) {
+  return AMOUNT_COUNTED_STATUSES.includes(claim.status)
+}

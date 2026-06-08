@@ -27,7 +27,7 @@ export default function MobileApprovals({ onNavigate }) {
 
   async function fetchClaims() {
     setLoading(true)
-    const pendingStatuses = profile.role === 'finance' ? ['pending_finance'] : ['pending_manager','queried','resubmitted']
+    const pendingStatuses = profile.role === 'finance' ? ['pending_finance'] : ['pending_manager']
     const { data } = await supabase
       .from('claims')
       .select(`*, fuel_entries(*), expense_entries(*), profiles!claims_employee_id_fkey(full_name)`)
@@ -45,7 +45,7 @@ export default function MobileApprovals({ onNavigate }) {
     setLoading(false)
   }
 
-  const pendingStatuses = profile?.role === 'finance' ? ['pending_finance'] : ['pending_manager','queried','resubmitted']
+  const pendingStatuses = profile?.role === 'finance' ? ['pending_finance'] : ['pending_manager']
   const pending = claims.filter(c => pendingStatuses.includes(c.status))
   const history = claims.filter(c => ['approved','partially_approved','rejected'].includes(c.status))
   const shown   = activeTab === 'pending' ? pending : history

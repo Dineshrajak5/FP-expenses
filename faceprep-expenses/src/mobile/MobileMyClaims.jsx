@@ -38,9 +38,11 @@ export default function MobileMyClaims({ onNavigate, onResubmit }) {
     if (signed) window.open(signed, '_blank')
   }
 
-  const filtered = filter === 'all' ? claims
-    : filter === 'pending' ? claims.filter(c => ['pending_manager','pending_finance','queried','resubmitted'].includes(c.status))
-    : claims.filter(c => c.status === filter)
+  // Hide superseded (resubmitted) claims everywhere
+  const visible = claims.filter(c => c.status !== 'resubmitted')
+  const filtered = filter === 'all' ? visible
+    : filter === 'pending' ? visible.filter(c => ['pending_manager','pending_finance'].includes(c.status))
+    : visible.filter(c => c.status === filter)
 
   const canResubmit = s => ['rejected','queried'].includes(s)
 

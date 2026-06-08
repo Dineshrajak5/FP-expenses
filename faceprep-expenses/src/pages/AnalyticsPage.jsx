@@ -5,7 +5,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   AreaChart, Area
 } from 'recharts'
-import { formatCurrency, EXPENSE_TYPE_COLORS } from '../lib/constants'
+import { formatCurrency, EXPENSE_TYPE_COLORS, countsTowardAmount } from '../lib/constants'
 import { format, parseISO, startOfMonth, eachMonthOfInterval, subMonths } from 'date-fns'
 
 const MONTH_COUNT = 6
@@ -40,7 +40,7 @@ export default function AnalyticsPage() {
   const monthlyTrend = months.map(m => {
     const label = format(m, 'MMM yy')
     const key = format(m, 'yyyy-MM')
-    const monthClaims = claims.filter(c => c.submitted_at?.startsWith(key))
+    const monthClaims = claims.filter(c => c.submitted_at?.startsWith(key) && countsTowardAmount(c))
     return {
       month: label,
       fuel: monthClaims.reduce((s, c) => s + Number(c.fuel_amount || 0), 0),
@@ -50,8 +50,13 @@ export default function AnalyticsPage() {
   })
 
   // ── Expense by category ──
+  // Only count entries from amount-counted claims, and only approved/pending line items
+  const countedClaimIds = new Set(claims.filter(countsTowardAmount).map(c => c.id))
+  const validExpenses = expenses.filter(e =>
+    countedClaimIds.has(e.claim_id) && e.status !== 'rejected' && e.status !== 'queried'
+  )
   const categoryMap = {}
-  expenses.forEach(e => {
+  validExpenses.forEach(e => {
     categoryMap[e.expense_type] = (categoryMap[e.expense_type] || 0) + Number(e.amount)
   })
   const categoryData = Object.entries(categoryMap)
@@ -60,8 +65,8 @@ export default function AnalyticsPage() {
     .slice(0, 8)
 
   // ── Claim status distribution ──
-  const statusMap = { pending_manager: 0, pending_finance: 0, approved: 0, rejected: 0, draft: 0 }
-  claims.forEach(c => { if (statusMap[c.status] !== undefined) statusMap[c.status]++ })
+  const statusMap = { pending_manager: 0, pending_finance: 0, approved: 0, rejected: 0, partially_approved: 0 }
+  claims.filter(c => c.status !== 'resubmitted' && c.status !== 'queried').forEach(c => { if (statusMap[c.status] !== undefined) statusMap[c.status]++ })
   const statusData = [
     { name: 'Approved', value: statusMap.approved, color: '#1D9E75' },
     { name: 'Pending manager', value: statusMap.pending_manager, color: '#EF9F27' },
@@ -70,18 +75,19 @@ export default function AnalyticsPage() {
   ].filter(d => d.value > 0)
 
   // ── Vehicle split in fuel ──
-  const carFuel  = fuel.filter(f => true).reduce((s, f) => {
+  const validFuel = fuel.filter(f => countedClaimIds.has(f.claim_id) && f.status !== 'rejected' && f.status !== 'queried')
+  const carFuel  = validFuel.reduce((s, f) => {
     const c = claims.find(c => c.id === f.claim_id)
     return c?.vehicle_type === 'Car' ? s + Number(f.amount) : s
   }, 0)
-  const bikeFuel = fuel.reduce((s, f) => {
+  const bikeFuel = validFuel.reduce((s, f) => {
     const c = claims.find(cl => cl.id === f.claim_id)
     return c?.vehicle_type === 'Bike' ? s + Number(f.amount) : s
   }, 0)
 
   // ── Top routes ──
   const routeMap = {}
-  fuel.forEach(f => {
+  validFuel.forEach(f => {
     const key = `${f.from_place} → ${f.to_place}`
     if (!routeMap[key]) routeMap[key] = { count: 0, km: 0, amount: 0 }
     routeMap[key].count++
@@ -94,10 +100,11 @@ export default function AnalyticsPage() {
     .slice(0, 5)
 
   // Summary KPIs
-  const totalSpend    = claims.reduce((s, c) => s + Number(c.total_amount || 0), 0)
+  const countedClaims = claims.filter(countsTowardAmount)
+  const totalSpend    = countedClaims.reduce((s, c) => s + Number(c.total_amount || 0), 0)
   const approvedSpend = claims.filter(c => c.status === 'approved').reduce((s, c) => s + Number(c.total_amount || 0), 0)
-  const avgClaim      = claims.length ? totalSpend / claims.length : 0
-  const totalKm       = fuel.reduce((s, f) => s + Number(f.distance_km || 0), 0)
+  const avgClaim      = countedClaims.length ? totalSpend / countedClaims.length : 0
+  const totalKm       = validFuel.reduce((s, f) => s + Number(f.distance_km || 0), 0)
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null
