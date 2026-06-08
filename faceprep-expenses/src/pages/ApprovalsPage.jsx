@@ -7,7 +7,8 @@ import { formatCurrency, formatDate, CLAIM_STATUS } from '../lib/constants'
 import { processLineDecisions } from '../lib/approvalLogic'
 import LineItemReviewer from '../components/LineItemReviewer'
 import ClaimThread from '../components/ClaimThread'
-import { CheckCircle, ChevronDown, ChevronUp, SplitSquareHorizontal } from 'lucide-react'
+import ClaimStageBar from '../components/ClaimStageBar'
+import { CheckCircle, ChevronDown, ChevronUp, SplitSquareHorizontal, CreditCard } from 'lucide-react'
 
 export default function ApprovalsPage() {
   const { profile } = useAuth()
@@ -18,6 +19,28 @@ export default function ApprovalsPage() {
   const [saving, setSaving] = useState(null)
   const [claimNote, setClaimNote] = useState({})
   const [activeTab, setActiveTab] = useState('pending')
+  const [paymentNote, setPaymentNote] = useState({})
+  const [markingPayment, setMarkingPayment] = useState(null)
+
+  async function handleMarkPayment(claimId) {
+    setMarkingPayment(claimId)
+    try {
+      const { error } = await supabase.from('claims').update({
+        status: 'payment_processed',
+        payment_note: paymentNote[claimId] || null,
+        payment_by: profile.id,
+        payment_at: new Date().toISOString(),
+      }).eq('id', claimId)
+      if (error) throw error
+      toast('✅ Payment marked as processed', 'success')
+      fetchClaims()
+      setExpanded(null)
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setMarkingPayment(null)
+    }
+  }
 
   useEffect(() => { if (profile) fetchClaims() }, [profile])
 
@@ -26,7 +49,7 @@ export default function ApprovalsPage() {
     const pendingStatuses = profile.role === 'finance'
       ? ['pending_finance']
       : ['pending_manager']
-    const allStatuses = [...pendingStatuses, 'approved', 'partially_approved', 'rejected']
+    const allStatuses = [...pendingStatuses, 'approved', 'partially_approved', 'rejected', 'payment_processed']
 
     const { data } = await supabase
       .from('claims')
@@ -43,7 +66,7 @@ export default function ApprovalsPage() {
     : ['pending_manager']
 
   const pending = claims.filter(c => pendingStatuses.includes(c.status))
-  const history = claims.filter(c => ['approved', 'partially_approved', 'rejected'].includes(c.status))
+  const history = claims.filter(c => ['approved', 'partially_approved', 'rejected', 'payment_processed'].includes(c.status))
   const shown   = activeTab === 'pending' ? pending : history
 
   async function handleDecisions(claim, decisions) {
@@ -169,10 +192,12 @@ export default function ApprovalsPage() {
                 <div style={{ borderTop: '0.5px solid var(--border)', padding: '20px', background: 'var(--bg-elevated)' }}>
                   {pendingStatuses.includes(c.status) ? (
                     <>
+                      <div style={{ marginBottom: 16 }}><ClaimStageBar claim={c} /></div>
                       <LineItemReviewer
                         claim={c}
                         onSaveLineDecisions={(decisions) => handleDecisions(c, decisions)}
                         saving={saving === c.id}
+                        role={profile.role}
                       />
                       <div className="divider" />
                       <div style={{ marginBottom: 8 }}>
@@ -189,7 +214,7 @@ export default function ApprovalsPage() {
                       <ClaimThread claimId={c.id} />
                     </>
                   ) : (
-                    /* History view — read-only */
+                    /* History view — read-only + payment button for Finance */
                     <div>
                       <div className="grid2" style={{ marginBottom: 16 }}>
                         {c.fuel_entries?.length > 0 && (
@@ -233,9 +258,36 @@ export default function ApprovalsPage() {
                           )}
                         </div>
                       )}
-                      {c.manager_note && <div style={{ fontSize: 12, color: 'var(--amber)', marginBottom: 6 }}>Manager: {c.manager_note}</div>}
-                      {c.finance_note && <div style={{ fontSize: 12, color: 'var(--blue)', marginBottom: 6 }}>Finance: {c.finance_note}</div>}
+                      <div style={{ marginBottom: 14 }}><ClaimStageBar claim={c} /></div>
                       <ClaimThread claimId={c.id} />
+                      {/* Payment button — Finance only, on approved claims */}
+                      {profile.role === 'finance' && c.status === 'approved' && (
+                        <div style={{ marginTop: 16, padding: '16px', background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '0.5px solid var(--border)' }}>
+                          <div className="section-label">Mark payment processed</div>
+                          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                            <input
+                              className="inline-input"
+                              style={{ flex: 1 }}
+                              placeholder="Payment reference / UTR number (optional)"
+                              value={paymentNote[c.id] || ''}
+                              onChange={e => setPaymentNote(p => ({ ...p, [c.id]: e.target.value }))}
+                            />
+                            <button
+                              className="btn btn-success"
+                              onClick={() => handleMarkPayment(c.id)}
+                              disabled={markingPayment === c.id}
+                            >
+                              {markingPayment === c.id ? <div className="spinner" style={{ width: 14, height: 14 }} /> : <CreditCard size={14} />}
+                              Payment processed
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {c.status === 'payment_processed' && (
+                        <div style={{ marginTop: 14, padding: '10px 14px', background: 'var(--green-bg)', border: '0.5px solid rgba(34,196,122,0.25)', borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--green)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <CreditCard size={14} /> Payment processed{c.payment_note ? ` — ${c.payment_note}` : ''}{c.payment_at ? ` on ${new Date(c.payment_at).toLocaleDateString('en-IN')}` : ''}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

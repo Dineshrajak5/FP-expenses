@@ -7,6 +7,7 @@ import { exportClaimPDF } from '../lib/pdf'
 import { getBillUrl } from '../lib/storage'
 import ClaimThread from '../components/ClaimThread'
 import { FileText, Download, Eye, RefreshCw } from 'lucide-react'
+import ClaimStageBar from '../components/ClaimStageBar'
 
 export default function MyClaimsPage({ onResubmit }) {
   const { profile } = useAuth()
