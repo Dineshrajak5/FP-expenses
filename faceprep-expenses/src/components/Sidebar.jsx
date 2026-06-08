@@ -39,7 +39,7 @@ export default function Sidebar({ activePage, onNavigate }) {
       }}>
         <FacerepLogo width={148} />
         <div style={{
-          fontSize: 13, fontWeight: 700, color: '#ffffff',
+          fontSize: 13, fontWeight: 700, color: 'var(--text-primary)',
           fontFamily: 'var(--font-display)',
           letterSpacing: '-0.01em', textTransform: 'none',
           textAlign: 'center', lineHeight: 1.3,
