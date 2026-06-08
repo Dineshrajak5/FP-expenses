@@ -139,7 +139,7 @@ export default function MobileMyClaims({ onNavigate, onResubmit }) {
 
                   {/* Actions */}
                   <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                    <button className="m-btn m-btn-secondary m-btn-sm" onClick={() => exportClaimPDF(c, c.fuel_entries, c.expense_entries, profile)}>
+                    <button className="m-btn m-btn-secondary m-btn-sm" onClick={async () => { try { exportClaimPDF(c, c.fuel_entries, c.expense_entries, profile) } catch(e) { alert('PDF export not supported on this device. Please use desktop.') } }}>
                       <Download size={14} /> PDF
                     </button>
                     {c.fuel_bill_url && (
