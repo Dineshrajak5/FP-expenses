@@ -61,6 +61,28 @@ export default function AdminPage() {
     }
     setWiping(true)
     try {
+      // Step 1: Clear all files from the bills bucket via Storage API
+      const { data: fileList } = await supabase.storage.from('bills').list('', {
+        limit: 1000, offset: 0, sortBy: { column: 'name', order: 'asc' }
+      })
+      if (fileList && fileList.length > 0) {
+        // list() returns top-level folders (user IDs). List files inside each.
+        const allPaths = []
+        for (const folder of fileList) {
+          if (folder.id === null) {
+            // It's a folder — list its contents
+            const { data: inner } = await supabase.storage.from('bills').list(folder.name, { limit: 1000 })
+            if (inner) inner.forEach(f => allPaths.push(`${folder.name}/${f.name}`))
+          } else {
+            allPaths.push(folder.name)
+          }
+        }
+        if (allPaths.length > 0) {
+          await supabase.storage.from('bills').remove(allPaths)
+        }
+      }
+
+      // Step 2: Wipe DB records via the SQL function
       const { data, error } = await supabase.rpc('wipe_all_claim_data', { secret_code: secretCode })
       if (error) throw error
       if (!data?.success) {
@@ -68,7 +90,7 @@ export default function AdminPage() {
         setWiping(false)
         return
       }
-      toast(`Wiped ${data.deleted_claims} claims. Numbers reset.`, 'success')
+      toast(`✓ Wiped ${data.deleted_claims} claims + all bills. Numbers reset.`, 'success')
       setWipeOpen(false)
       setSecretCode('')
       setConfirmText('')
