@@ -235,6 +235,8 @@ p  { line-height: 1.6; color: var(--text-secondary); font-size: 0.95rem; }
 .badge-queried          { background: var(--purple-bg); color: var(--purple); }
 .badge-resubmitted      { background: rgba(240,81,54,0.12); color: var(--brand); }
 .badge-partially_approved { background: var(--amber-bg); color: var(--amber); }
+.badge-payment_processed { background: var(--green-bg); color: var(--green); border: 0.5px solid rgba(34,196,122,0.2); }
+.badge-partially_approved { background: var(--amber-bg); color: var(--amber); }
 
 .form-group { display: flex; flex-direction: column; gap: 6px; }
 .form-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; }
