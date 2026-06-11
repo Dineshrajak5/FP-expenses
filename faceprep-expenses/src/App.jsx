@@ -14,6 +14,7 @@ import MyClaimsPage from './pages/MyClaimsPage'
 import ApprovalsPage from './pages/ApprovalsPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import AdminPage from './pages/AdminPage'
+import DraftsPage from './pages/DraftsPage'
 import { isMisconfigured } from './lib/supabase'
 import './styles/global.css'
 
@@ -41,6 +42,7 @@ function DesktopShell() {
   const [page, setPageState] = useState(() => sessionStorage.getItem('fp-page') || 'dashboard')
   const setPage = (p) => { sessionStorage.setItem('fp-page', p); setPageState(p) }
   const [resubmitClaim, setResubmitClaim] = useState(null)
+  const [draftData, setDraftData] = useState(null)
 
   if (loading) return (
     <div className="loading-screen">
@@ -57,18 +59,19 @@ function DesktopShell() {
 
   const pages = {
     dashboard:   <DashboardPage onNavigate={handleNavigate} />,
-    'new-claim': <NewClaimPage  onNavigate={(p)=>{ setResubmitClaim(null); setPage(p) }} editClaim={resubmitClaim} />,
+    'new-claim': <NewClaimPage  onNavigate={(p)=>{ setResubmitClaim(null); setDraftData(null); setPage(p) }} editClaim={resubmitClaim} draftData={draftData?.draft_data ? { ...draftData.draft_data, draftId: draftData.id } : null} />,
     'my-claims': <MyClaimsPage  onResubmit={handleResubmit} />,
+    'drafts':    <DraftsPage onNavigate={handleNavigate} onResumeDraft={(d) => { setDraftData(d); handleNavigate('new-claim') }} />,
     approvals:   <ApprovalsPage />,
     analytics:   <AnalyticsPage />,
     admin:       <AdminPage />,
   }
 
   const allowed = {
-    staff:   ['dashboard','new-claim','my-claims'],
-    manager: ['dashboard','new-claim','my-claims','approvals','analytics'],
+    staff:   ['dashboard','new-claim','my-claims','drafts'],
+    manager: ['dashboard','new-claim','my-claims','drafts','approvals','analytics'],
     finance: ['dashboard','approvals','analytics'],
-    admin:   ['dashboard','new-claim','my-claims','approvals','analytics','admin'],
+    admin:   ['dashboard','new-claim','my-claims','drafts','approvals','analytics','admin'],
   }
   const role = profile?.role ?? 'admin'
   const currentPage = allowed[role]?.includes(page) ? page : 'dashboard'
