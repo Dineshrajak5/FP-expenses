@@ -26,18 +26,35 @@ export default function AdminPage() {
     if (!newEmail.endsWith('@faceprep.in')) { toast('Must be a @faceprep.in email', 'error'); return }
     setCreating(true)
     try {
-      // Insert profile — when they first log in via Google OAuth,
-      // the trigger will find this profile and use it.
-      const { error } = await supabase.from('profiles').upsert({
-        email: newEmail.toLowerCase().trim(),
-        full_name: newName.trim(),
-        role: newRole,
-        approved: true,
-        approved_at: new Date().toISOString(),
-        approved_by: profile.id,
-      }, { onConflict: 'email' })
-      if (error) throw error
-      toast(`${newName} added as ${ROLES[newRole]}. They can now log in via Google.`, 'success')
+      const emailClean = newEmail.toLowerCase().trim()
+
+      // Check if user already exists
+      const { data: existing } = await supabase
+        .from('profiles').select('id').eq('email', emailClean).maybeSingle()
+
+      if (existing) {
+        // User exists — update their role and approve them
+        const { data, error } = await supabase.rpc('admin_update_user', {
+          target_id:    existing.id,
+          new_role:     newRole,
+          new_approved: true,
+          approver_id:  profile.id,
+        })
+        if (error || !data?.success) throw new Error(error?.message || data?.error)
+        toast(`${newName} updated — role set to ${ROLES[newRole]}`, 'success')
+      } else {
+        // New user — insert profile so they're pre-approved on first login
+        const { error } = await supabase.from('profiles').insert({
+          email:       emailClean,
+          full_name:   newName.trim(),
+          role:        newRole,
+          approved:    true,
+          approved_at: new Date().toISOString(),
+          approved_by: profile.id,
+        })
+        if (error) throw error
+        toast(`${newName} added as ${ROLES[newRole]}. They can now log in via Google.`, 'success')
+      }
       setNewEmail(''); setNewName(''); setNewRole('staff')
       fetchUsers()
     } catch (err) { toast(err.message, 'error') }
@@ -112,20 +129,23 @@ export default function AdminPage() {
 
   async function toggleApproval(user) {
     const newVal = !user.approved
-    const { error } = await supabase.from('profiles').update({
-      approved: newVal,
-      approved_by: newVal ? profile.id : null,
-      approved_at: newVal ? new Date().toISOString() : null,
-    }).eq('id', user.id)
-    if (error) { toast(error.message, 'error'); return }
-    toast(`${user.full_name} ${newVal ? 'approved' : 'revoked'}`, newVal ? 'success' : 'info')
+    const { data, error } = await supabase.rpc('admin_update_user', {
+      target_id:    user.id,
+      new_approved: newVal,
+      approver_id:  profile.id,
+    })
+    if (error || !data?.success) { toast(error?.message || data?.error || 'Update failed', 'error'); return }
+    toast(`${user.full_name} ${newVal ? 'approved ✓' : 'revoked'}`, newVal ? 'success' : 'info')
     fetchUsers()
   }
 
-  async function updateRole(userId, role) {
-    const { error } = await supabase.from('profiles').update({ role }).eq('id', userId)
-    if (error) { toast(error.message, 'error'); return }
-    toast('Role updated', 'success')
+  async function updateRole(userId, newRole) {
+    const { data, error } = await supabase.rpc('admin_update_user', {
+      target_id: userId,
+      new_role:  newRole,
+    })
+    if (error || !data?.success) { toast(error?.message || data?.error || 'Update failed', 'error'); return }
+    toast('Role updated ✓', 'success')
     fetchUsers()
   }
 

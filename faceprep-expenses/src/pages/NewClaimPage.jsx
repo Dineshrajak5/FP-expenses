@@ -63,6 +63,22 @@ export default function NewClaimPage({ onNavigate, editClaim, draftData }) {
   const [submitting, setSubmitting] = useState(false)
   const [lastSaved, setLastSaved]   = useState(null)
 
+  async function saveNow() {
+    if (isResubmit || !profile?.id) return
+    setDraftSaving(true)
+    try {
+      const data = { period_from: periodFrom, period_to: periodTo, vehicle_type: vehicle, fuel_price_band: fuelBand, fuelRows, expRows }
+      const draftId = getDraftId()
+      if (draftId) {
+        await supabase.from('claim_drafts').update({ draft_data: data, updated_at: new Date().toISOString() }).eq('id', draftId)
+      } else {
+        await supabase.from('claim_drafts').insert({ employee_id: profile.id, draft_data: data })
+      }
+      setDraftSavedAt(new Date())
+    } catch(e) {}
+    finally { setDraftSaving(false) }
+  }
+
   const rate      = getFuelRate(vehicle, fuelBand)
   const fuelTotal = fuelRows.reduce((s, r) => s + (parseFloat(r.km) || 0) * rate, 0)
   const expTotal  = expRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0)
@@ -75,7 +91,9 @@ export default function NewClaimPage({ onNavigate, editClaim, draftData }) {
     fuelRows, expRows,
   }
 
-  const { deleteDraft } = useDraft(
+  const [draftSaving, setDraftSaving] = useState(false)
+  const [draftSavedAt, setDraftSavedAt] = useState(null)
+  const { deleteDraft, getDraftId } = useDraft(
     profile?.id,
     draftData?.draftId || null,
     formState,
@@ -156,9 +174,9 @@ export default function NewClaimPage({ onNavigate, editClaim, draftData }) {
           <div className="page-title">{isResubmit ? 'Resubmit queried items' : 'New claim'}</div>
           <div className="page-sub" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {isResubmit ? `Responding to query — clarify items below and resubmit` : 'Submit a reimbursement claim'}
-            {!isResubmit && lastSaved && (
+            {!isResubmit && (draftSavedAt || lastSaved) && (
               <span style={{ fontSize: 11, color: 'var(--green)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Save size={11} /> Draft saved {lastSaved.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                <Save size={11} /> Draft saved {(draftSavedAt || lastSaved).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
           </div>
@@ -285,6 +303,12 @@ export default function NewClaimPage({ onNavigate, editClaim, draftData }) {
             <div style={{ fontSize:11,color:'var(--text-muted)',marginTop:2 }}>Fuel {formatCurrency(fuelTotal)} + Other {formatCurrency(expTotal)}</div>
           </div>
           <div style={{ display:'flex',gap:10 }}>
+            {!isResubmit && (
+              <button className="btn btn-secondary" onClick={saveNow} disabled={draftSaving} title="Save draft now">
+                {draftSaving ? <div className="spinner" style={{ width: 13, height: 13 }} /> : <Save size={13} />}
+                {draftSaving ? 'Saving…' : 'Save draft'}
+              </button>
+            )}
             <button className="btn btn-secondary" onClick={() => onNavigate('drafts')}>View drafts</button>
             <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
               {submitting ? <div className="spinner" style={{ width:14,height:14 }} /> : <Send size={14} />}

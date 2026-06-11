@@ -127,6 +127,9 @@ export default function MyClaimsPage({ onResubmit }) {
                                 </div>
                               )}
                             </div>
+                            <div style={{ marginBottom: 14 }}>
+                              <ClaimStageBar claim={c} />
+                            </div>
                             <div className="divider" />
                             <ClaimThread claimId={c.id} />
                           </div>
