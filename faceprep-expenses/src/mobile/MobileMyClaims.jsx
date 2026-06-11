@@ -6,6 +6,7 @@ import { formatCurrency, formatDate, CLAIM_STATUS } from '../lib/constants'
 import { exportClaimPDF } from '../lib/pdf'
 import { getBillUrl } from '../lib/storage'
 import ClaimThread from '../components/ClaimThread'
+import ClaimStageBar from '../components/ClaimStageBar'
 import { ChevronRight, ChevronDown, Download, RefreshCw, Eye, MessageSquare } from 'lucide-react'
 
 const STATUS_COLOR = {
@@ -155,6 +156,10 @@ export default function MobileMyClaims({ onNavigate, onResubmit }) {
                     )}
                   </div>
 
+                  {/* Stage bar */}
+                  <div style={{ marginTop: 14 }}>
+                    <ClaimStageBar claim={c} />
+                  </div>
                   {/* Thread */}
                   <div style={{ marginTop: 14, borderTop: '0.5px solid var(--border)', paddingTop: 14 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
