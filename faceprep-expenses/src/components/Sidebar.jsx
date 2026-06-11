@@ -1,4 +1,4 @@
-import { LayoutDashboard, FilePlus, FileText, CheckSquare, BarChart3, LogOut, Settings, Sun, Moon } from 'lucide-react'
+import { LayoutDashboard, FilePlus, FileText, CheckSquare, BarChart3, LogOut, Settings, Sun, Moon, BookOpen } from 'lucide-react'
 import { signOut } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
@@ -10,6 +10,7 @@ const NAV = [
     { id: 'dashboard',  label: 'Dashboard',      icon: LayoutDashboard, roles: ['staff','manager','finance','admin'] },
     { id: 'new-claim',  label: 'New claim',       icon: FilePlus,        roles: ['staff','manager','admin'] },
     { id: 'my-claims',  label: 'My claims',       icon: FileText,        roles: ['staff','manager','admin'] },
+    { id: 'drafts',      label: 'Drafts',          icon: BookOpen,        roles: ['staff','manager','admin'] },
   ]},
   { section: 'Approvals', items: [
     { id: 'approvals',  label: 'Approvals',       icon: CheckSquare,     roles: ['manager','finance','admin'] },
